@@ -50,6 +50,7 @@ h1, h2, h3, h4, p { margin: 0; }
   border-radius: 8px;
   background: var(--background-strong);
   overflow: hidden;
+  max-width: 100%;
 }
 
 .code-block-header {
@@ -59,6 +60,8 @@ h1, h2, h3, h4, p { margin: 0; }
   padding: 0.5rem 1rem;
   background: rgba(0, 0, 0, 0.3);
   border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .code-block-language {
@@ -72,22 +75,7 @@ h1, h2, h3, h4, p { margin: 0; }
 .code-block-actions {
   display: flex;
   gap: 0.5rem;
-}
-
-.code-block-button {
-  padding: 0.25rem 0.75rem;
-  font-size: 0.75rem;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  color: var(--foreground);
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.code-block-button:hover {
-  background: var(--panel-strong);
-  border-color: var(--cyan);
+  flex-wrap: wrap;
 }
 
 .code-block-content {
@@ -95,24 +83,36 @@ h1, h2, h3, h4, p { margin: 0; }
   padding: 1rem;
   overflow-x: auto;
   font-family: var(--font-geist-mono), monospace;
-  font-size: 0.875rem;
-  line-height: 1.6;
+  font-size: 0.75rem;
+  line-height: 1.5;
   color: var(--foreground);
+  max-width: 100%;
 }
 
 .code-block-content code {
   font-family: inherit;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.code-block-collapsed {
+  padding: 1rem;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.2);
 }
 
 .task-output-parsed {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .task-output-text {
   line-height: 1.6;
   color: var(--foreground);
+  word-wrap: break-word;
 }
 
 .task-output-text p {

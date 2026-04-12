@@ -48,16 +48,12 @@ function TaskCard({
   const [executing, setExecuting] = useState(false);
   const [execResult, setExecResult] = useState<ExecuteTaskResult | null>(null);
   const [showOutput, setShowOutput] = useState(false);
-  const [loadingExecution, setLoadingExecution] = useState(false);
 
   // Load the most recent execution for this task on mount
   useEffect(() => {
     let mounted = true;
     
     async function loadLastExecution() {
-      if (loadingExecution) return; // Already loading
-      
-      setLoadingExecution(true);
       try {
         const response = await fetch(`/api/tasks/${task.id}/executions`);
         if (response.ok && mounted) {
@@ -71,15 +67,12 @@ function TaskCard({
               error: lastExec.error,
               modelName: lastExec.model_name,
             });
+            // Don't auto-show output, let user click to reveal
           }
         }
       } catch (error) {
         if (mounted) {
           console.error('Failed to load execution:', error);
-        }
-      } finally {
-        if (mounted) {
-          setLoadingExecution(false);
         }
       }
     }
@@ -89,7 +82,7 @@ function TaskCard({
     return () => {
       mounted = false;
     };
-  }, [task.id, loadingExecution]); // Reload when task changes
+  }, [task.id]); // Only reload when task ID changes
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -100,10 +93,10 @@ function TaskCard({
   async function handleRunTask() {
     setExecuting(true);
     setExecResult(null);
-    setShowOutput(true);
     try {
       const result = await executeTaskAction(task.id);
       setExecResult(result);
+      setShowOutput(true); // Auto-show output after execution
       // If status changed, reflect it locally
       if (result.success && onTaskUpdated) {
         onTaskUpdated({ ...task, status: 'review' });
@@ -112,6 +105,7 @@ function TaskCard({
       }
     } catch {
       setExecResult({ error: 'Unexpected error executing task.' });
+      setShowOutput(true); // Show error too
     } finally {
       setExecuting(false);
     }

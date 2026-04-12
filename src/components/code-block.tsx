@@ -10,6 +10,12 @@ interface CodeBlockProps {
 
 export function CodeBlock({ code, language = 'python', filename }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  
+  // Collapse code blocks longer than 10 lines
+  const lines = code.split('\n');
+  const isLong = lines.length > 10;
+  const shouldCollapse = isLong && !expanded;
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(code);
@@ -36,23 +42,38 @@ export function CodeBlock({ code, language = 'python', filename }: CodeBlockProp
         <div className="code-block-actions">
           <button
             onClick={handleCopy}
-            className="code-block-button"
-            title="Copy code"
+            className="run-task-button"
+            title="Copy code to clipboard"
           >
-            {copied ? '✓ Copied!' : '📋 Copy'}
+            {copied ? '✓ Copied' : '📋 Copy'}
           </button>
           <button
             onClick={handleDownload}
-            className="code-block-button"
+            className="run-task-button"
             title="Download as file"
           >
             ⬇️ Download
           </button>
+          {isLong && (
+            <button
+              onClick={() => setExpanded(!expanded)}
+              className="run-task-button"
+              title={expanded ? 'Collapse code' : 'Expand code'}
+            >
+              {expanded ? '▲ Collapse' : '▼ Expand'}
+            </button>
+          )}
         </div>
       </div>
-      <pre className="code-block-content">
-        <code>{code}</code>
-      </pre>
+      {shouldCollapse ? (
+        <div className="code-block-collapsed">
+          <p className="micro-copy">Code collapsed ({lines.length} lines). Use buttons above to copy, download, or expand.</p>
+        </div>
+      ) : (
+        <pre className="code-block-content">
+          <code>{code}</code>
+        </pre>
+      )}
     </div>
   );
 }
