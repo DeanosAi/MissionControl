@@ -23,6 +23,7 @@ import { useEffect, useMemo, useState, useTransition } from 'react';
 import type { TaskRecord, TaskStatus } from '@/lib/tasks';
 import { executeTaskAction, moveTaskQuickAction, type ExecuteTaskResult } from './actions';
 import { TaskEditForm } from './task-edit-form';
+import { TaskOutputParser } from '@/components/task-output-parser';
 
 const columns: { key: TaskStatus; label: string; className: string }[] = [
   { key: 'backlog', label: 'To Do', className: 'kanban-todo' },
@@ -172,7 +173,7 @@ function TaskCard({
             )}
           </div>
           {execResult.result && (
-            <pre className="exec-output-body">{execResult.result}</pre>
+            <TaskOutputParser output={execResult.result} />
           )}
           {execResult.error && (
             <p className="exec-output-error">{execResult.error}</p>
