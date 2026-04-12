@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <rect width="1024" height="1024" rx="220" fill="#03060D"/>
+  <defs>
+    <linearGradient id="mcStroke" x1="176" y1="140" x2="858" y2="768" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1AE3FF"/>
+      <stop offset="0.55" stop-color="#38BDF8"/>
+      <stop offset="1" stop-color="#A855F7"/>
+    </linearGradient>
+    <linearGradient id="mcText" x1="256" y1="690" x2="760" y2="862" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#DFFAFF"/>
+      <stop offset="0.6" stop-color="#E5F2FF"/>
+      <stop offset="1" stop-color="#EAD7FF"/>
+    </linearGradient>
+    <filter id="outerGlow" x="80" y="72" width="864" height="880" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="10" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <g filter="url(#outerGlow)">
+    <circle cx="512" cy="316" r="232" stroke="url(#mcStroke)" stroke-width="16"/>
+    <path d="M278 178L222 268" stroke="#1AE3FF" stroke-width="16" stroke-linecap="round"/>
+    <path d="M760 170L814 260" stroke="#A855F7" stroke-width="16" stroke-linecap="round"/>
+    <circle cx="512" cy="316" r="108" fill="url(#mcStroke)" fill-opacity="0.12" stroke="#38BDF8" stroke-width="4"/>
+    <path d="M402 350C470 270 650 252 734 330" stroke="url(#mcStroke)" stroke-width="10" stroke-linecap="round"/>
+    <circle cx="734" cy="330" r="14" fill="#A855F7"/>
+    <path d="M430 208C494 164 598 154 680 190" stroke="#38BDF8" stroke-width="6" stroke-linecap="round"/>
+    <circle cx="680" cy="190" r="11" fill="#38BDF8"/>
+    <path d="M416 540L512 446L608 540" stroke="#7DD3FC" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M512 446L512 618" stroke="#C084FC" stroke-width="12" stroke-linecap="round"/>
+    <ellipse cx="512" cy="542" rx="120" ry="48" stroke="url(#mcStroke)" stroke-width="12"/>
+    <circle cx="616" cy="514" r="12" fill="#60A5FA"/>
+    <path d="M474 618H550L568 672H456L474 618Z" fill="#050B16" stroke="#38BDF8" stroke-width="6"/>
+    <path d="M244 698L336 610H688L780 698" stroke="url(#mcStroke)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M320 724H704" stroke="url(#mcStroke)" stroke-width="7" stroke-linecap="round"/>
+    <text x="512" y="786" text-anchor="middle" fill="url(#mcText)" font-family="Arial, Helvetica, sans-serif" font-size="88" font-weight="700" letter-spacing="6">MISSION</text>
+    <text x="512" y="850" text-anchor="middle" fill="#59D6FF" font-family="Arial, Helvetica, sans-serif" font-size="40" font-weight="600" letter-spacing="12">CONTROL</text>
+  </g>
+</svg>

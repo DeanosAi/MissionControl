@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="420" viewBox="0 0 1600 420" fill="none">
+  <rect width="1600" height="420" rx="32" fill="#040814"/>
+  <defs>
+    <linearGradient id="leftHud" x1="108" y1="132" x2="466" y2="286" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#26E3FF"/>
+      <stop offset="1" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <linearGradient id="wordmark" x1="620" y1="112" x2="1230" y2="260" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F8FAFC"/>
+      <stop offset="0.62" stop-color="#E2E8F0"/>
+      <stop offset="1" stop-color="#E9D5FF"/>
+    </linearGradient>
+  </defs>
+  <g opacity="0.95">
+    <circle cx="232" cy="210" r="114" stroke="url(#leftHud)" stroke-width="4"/>
+    <circle cx="232" cy="210" r="78" stroke="#38BDF8" stroke-width="2.4" opacity="0.82"/>
+    <path d="M118 210H346" stroke="#38BDF8" stroke-width="3.2" stroke-linecap="round" opacity="0.9"/>
+    <path d="M232 96V324" stroke="#8B5CF6" stroke-width="3.2" stroke-linecap="round" opacity="0.9"/>
+    <path d="M152 130L312 290" stroke="url(#leftHud)" stroke-width="2.4" stroke-linecap="round" opacity="0.8"/>
+    <path d="M312 130L152 290" stroke="url(#leftHud)" stroke-width="2.4" stroke-linecap="round" opacity="0.8"/>
+    <circle cx="232" cy="210" r="12" fill="#38BDF8"/>
+    <path d="M76 254C122 166 192 130 286 118" stroke="#8B5CF6" stroke-width="2.4" stroke-linecap="round" opacity="0.75"/>
+    <circle cx="92" cy="232" r="5" fill="#26E3FF"/>
+  </g>
+  <path d="M380 336L456 270H1452L1528 336" stroke="url(#leftHud)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.28"/>
+  <text x="954" y="178" text-anchor="middle" fill="url(#wordmark)" font-family="Arial, Helvetica, sans-serif" font-size="88" font-weight="700" letter-spacing="6">MISSION CONTROL</text>
+  <text x="954" y="244" text-anchor="middle" fill="#38BDF8" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="600" letter-spacing="8">MONITOR•ANALYZE•COORDINATE</text>
+</svg>
