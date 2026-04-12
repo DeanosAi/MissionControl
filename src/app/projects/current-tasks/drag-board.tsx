@@ -18,12 +18,11 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useMemo, useState, useTransition } from 'react';
 
 import type { TaskRecord, TaskStatus } from '@/lib/tasks';
 import { executeTaskAction, moveTaskQuickAction, type ExecuteTaskResult } from './actions';
 import { TaskEditForm } from './task-edit-form';
-import { TaskOutputParser } from '@/components/task-output-parser';
 
 const columns: { key: TaskStatus; label: string; className: string }[] = [
   { key: 'backlog', label: 'To Do', className: 'kanban-todo' },
@@ -49,51 +48,6 @@ function TaskCard({
   const [execResult, setExecResult] = useState<ExecuteTaskResult | null>(null);
   const [showOutput, setShowOutput] = useState(false);
 
-  // Load the most recent execution for this task on mount
-  useEffect(() => {
-    let mounted = true;
-    
-    async function loadLastExecution() {
-      try {
-        const response = await fetch(`/api/tasks/${task.id}/executions`);
-        if (!response.ok) {
-          console.log(`No executions found for task ${task.id}`);
-          return;
-        }
-        
-        if (mounted) {
-          const data = await response.json();
-          const executions = data.executions || data; // Handle both formats
-          console.log(`Loaded ${executions?.length || 0} executions for task ${task.id}`);
-          
-          if (executions && executions.length > 0) {
-            const lastExec = executions[0];
-            console.log('Last execution:', lastExec);
-            
-            setExecResult({
-              success: lastExec.status === 'completed',
-              status: lastExec.status,
-              result: lastExec.result,
-              error: lastExec.error,
-              modelName: lastExec.modelName || lastExec.model_name, // Support both formats
-            });
-            // Don't auto-show output on page load, let user click
-          }
-        }
-      } catch (error) {
-        if (mounted) {
-          console.error(`Failed to load execution for task ${task.id}:`, error);
-        }
-      }
-    }
-    
-    loadLastExecution();
-    
-    return () => {
-      mounted = false;
-    };
-  }, [task.id]); // Only reload when task ID changes
-
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -103,10 +57,10 @@ function TaskCard({
   async function handleRunTask() {
     setExecuting(true);
     setExecResult(null);
+    setShowOutput(true);
     try {
       const result = await executeTaskAction(task.id);
       setExecResult(result);
-      setShowOutput(true); // Auto-show output after execution
       // If status changed, reflect it locally
       if (result.success && onTaskUpdated) {
         onTaskUpdated({ ...task, status: 'review' });
@@ -115,14 +69,12 @@ function TaskCard({
       }
     } catch {
       setExecResult({ error: 'Unexpected error executing task.' });
-      setShowOutput(true); // Show error too
     } finally {
       setExecuting(false);
     }
   }
 
   const canRun = !!task.assignedAi && !executing && task.status !== 'done' && task.status !== 'archived';
-  const hasExecution = !!execResult;
 
   return (
     <div ref={setNodeRef} style={style} className="kanban-card drag-task-card">
@@ -152,24 +104,19 @@ function TaskCard({
         {task.recurring ? <p className="micro-copy">Recurring: {task.recurring}</p> : null}
       </div>
 
-      {/* Task execution controls (Milestone D) */}
+      {/* Run Task button (Milestone D) */}
       {!dragOverlay && (
         <div className="task-execution-controls">
-          {/* Show Run button only if no execution exists yet */}
-          {!hasExecution && (
-            <button
-              type="button"
-              className={`run-task-button ${executing ? 'run-task-running' : ''}`}
-              disabled={!canRun}
-              onClick={handleRunTask}
-              title={!task.assignedAi ? 'Assign an AI model first' : executing ? 'Running…' : `Run task with ${task.assignedAi}`}
-            >
-              {executing ? '⟳ Running…' : '▶ Run Task'}
-            </button>
-          )}
-          
-          {/* Show Output toggle button if execution exists */}
-          {hasExecution && (
+          <button
+            type="button"
+            className={`run-task-button ${executing ? 'run-task-running' : ''}`}
+            disabled={!canRun}
+            onClick={handleRunTask}
+            title={!task.assignedAi ? 'Assign an AI model first' : executing ? 'Running…' : `Run task with ${task.assignedAi}`}
+          >
+            {executing ? '⟳ Running…' : '▶ Run Task'}
+          </button>
+          {execResult && (
             <button
               type="button"
               className="move-task-button"
@@ -193,7 +140,7 @@ function TaskCard({
             )}
           </div>
           {execResult.result && (
-            <TaskOutputParser output={execResult.result} />
+            <pre className="exec-output-body">{execResult.result}</pre>
           )}
           {execResult.error && (
             <p className="exec-output-error">{execResult.error}</p>

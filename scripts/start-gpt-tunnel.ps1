@@ -21,11 +21,11 @@
 $ErrorActionPreference = 'Stop'
 
 # --- Configuration ---
-$VPS_USER = "deanadmin"  # Updated to match actual VPS username
+$VPS_USER = "dean"
 $VPS_HOST = "app.missioncontroldb.online"
 $LOCAL_PORT = 3001
 $REMOTE_PORT = 3001
-$SSH_KEY = "$env:USERPROFILE\.ssh\id_ed25519"  # Updated to match actual key name
+$SSH_KEY = "$env:USERPROFILE\.ssh\id_ed25519"  # Adjust if your key path differs
 
 Write-Host ""
 Write-Host "=== Mission Control GPT OAuth Tunnel ===" -ForegroundColor Cyan

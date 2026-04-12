@@ -1,0 +1,137 @@
+[
+  {
+    "id": "task-24",
+    "title": "Mission Control VPS - Phase 2 build and deployment",
+    "description": "Create a separate VPS-hosted Mission Control app for app.missioncontroldb.online with modular dashboards for Ideas, Suggested Ideas, Projects, AI Builds, Tools, Systems, Automations, and Memory/Journal. Keep the current local Mission Control running separately, mirror progress into the local jobs board and memory journal, use Codex/GPT-5.4 for heavy build work, and deploy with secure VPS hosting, HTTPS, and resilient backups.",
+    "status": "in-progress",
+    "priority": "high",
+    "project": "Mission Control VPS",
+    "createdAt": "2026-04-09"
+  },
+  {
+    "id": "task-25",
+    "title": "Mission Control VPS - Backup architecture",
+    "description": "Implement nightly compressed backups on the VPS with rolling local retention and a secondary local-machine sync that fails gracefully when the PC is offline so the live app never breaks.",
+    "status": "backlog",
+    "priority": "high",
+    "project": "Mission Control VPS",
+    "createdAt": "2026-04-09"
+  },
+  {
+    "id": "task-26",
+    "title": "Mission Control VPS - Milestone C: Usage monitoring reliability",
+    "description": "Finish and verify the 10-minute usage monitoring automation so snapshot refresh survives reboot/login cleanly, remains fresh without manual nudging, and exposes stale-data state when the feed stops.",
+    "status": "in-progress",
+    "priority": "high",
+    "project": "Mission Control VPS",
+    "createdAt": "2026-04-11"
+  },
+  {
+    "id": "task-27",
+    "title": "Mission Control VPS - Milestone C: Multi-model chat stabilization",
+    "description": "Stabilize Kimi K2.5, Claude Sonnet 4.5, and Claude Opus 4.6 so model routing, attribution, live reply updates, and messaging-style chat behavior are consistently correct.",
+    "status": "in-progress",
+    "priority": "high",
+    "project": "Mission Control VPS",
+    "createdAt": "2026-04-11"
+  },
+  {
+    "id": "task-28",
+    "title": "Mission Control VPS - Milestone C: Current Tasks stability pass",
+    "description": "Complete the final regression and usability pass on Current Tasks so create/edit/delete/drag and AI assignment remain stable in live use.",
+    "status": "review",
+    "priority": "medium",
+    "project": "Mission Control VPS",
+    "createdAt": "2026-04-11"
+  },
+  {
+    "id": "task-29",
+    "title": "Mission Control VPS - Milestone D: Task execution engine",
+    "description": "Build the first real execution flow so a task can be run from Mission Control by the selected model, produce output, and update task state through execution.",
+    "status": "backlog",
+    "priority": "high",
+    "project": "Mission Control VPS",
+    "createdAt": "2026-04-11"
+  },
+  {
+    "id": "task-30",
+    "title": "Mission Control VPS - Milestone E: Chat to task integration",
+    "description": "Let chat create, assign, reference, and run tasks so the conversation interface becomes the control surface for Mission Control execution.",
+    "status": "backlog",
+    "priority": "high",
+    "project": "Mission Control VPS",
+    "createdAt": "2026-04-11"
+  },
+  {
+    "id": "task-31",
+    "title": "Mission Control VPS - Milestone F: Memory and continuity",
+    "description": "Build daily journal automation and shared AI-readable continuity so future model runs understand current work without being re-explained from scratch.",
+    "status": "backlog",
+    "priority": "high",
+    "project": "Mission Control VPS",
+    "createdAt": "2026-04-11"
+  },
+  {
+    "id": "task-32",
+    "title": "Mission Control VPS - Milestone G: Operations and resilience",
+    "description": "Add backup automation, health visibility, and recovery/admin tooling so the VPS app is sustainable and safe to operate long-term.",
+    "status": "backlog",
+    "priority": "high",
+    "project": "Mission Control VPS",
+    "createdAt": "2026-04-11"
+  },
+  {
+    "id": "task-33",
+    "title": "Mission Control VPS - Milestone H: Final polish and completion pass",
+    "description": "Run the final UX, consistency, and completion verification pass so Mission Control feels coherent, dependable, and finished across chat, tasks, memory, monitoring, and operations.",
+    "status": "backlog",
+    "priority": "medium",
+    "project": "Mission Control VPS",
+    "createdAt": "2026-04-11"
+  },
+  {
+    "id": "task-2",
+    "title": "Mingara social media audit",
+    "description": "Review all current Mingara social accounts and document current state",
+    "status": "backlog",
+    "priority": "high",
+    "project": "Mingara",
+    "createdAt": "2026-03-31"
+  },
+  {
+    "id": "task-3",
+    "title": "Content calendar template",
+    "description": "Design a reusable weekly content calendar for social media",
+    "status": "backlog",
+    "priority": "medium",
+    "project": "Mingara",
+    "createdAt": "2026-03-31"
+  },
+  {
+    "id": "task-4",
+    "title": "Set up daily briefing cron",
+    "description": "Configure morning brief with industry news and social trends",
+    "status": "in-progress",
+    "priority": "medium",
+    "project": "General",
+    "createdAt": "2026-03-31"
+  },
+  {
+    "id": "task-5",
+    "title": "Brand guidelines doc",
+    "description": "Create comprehensive brand guidelines document for Mingara content",
+    "status": "backlog",
+    "priority": "high",
+    "project": "Mingara",
+    "createdAt": "2026-03-31"
+  },
+  {
+    "id": "task-6",
+    "title": "Video editing workflow automation",
+    "description": "Research and document automation opportunities in the editing pipeline",
+    "status": "in-progress",
+    "priority": "low",
+    "project": "General",
+    "createdAt": "2026-03-31"
+  }
+]

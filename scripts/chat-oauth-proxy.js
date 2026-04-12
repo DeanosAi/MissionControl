@@ -23,66 +23,48 @@ const execAsync = promisify(exec);
 const PORT = process.argv[2] || 3001;
 
 async function generateViaOAuth(messages, model = 'gpt-4o') {
-  console.log(`[${new Date().toISOString()}] Generating with model: ${model}`);
-  console.log(`[${new Date().toISOString()}] Message count: ${messages.length}`);
+  // Extract the user's message
+  const userMessages = messages.filter(m => m.role === 'user');
+  const systemMessage = messages.find(m => m.role === 'system')?.content || '';
+  const lastUserMsg = userMessages[userMessages.length - 1]?.content || '';
 
-  // Simply pass through to OpenAI using subprocess that handles OAuth
-  // Format: echo prompt | openclaw chat --model openai-codex
-  
-  // Build conversation context
-  let conversationText = '';
-  for (const msg of messages) {
-    if (msg.role === 'system') {
-      conversationText += `System: ${msg.content}\n\n`;
-    } else if (msg.role === 'user') {
-      conversationText += `User: ${msg.content}\n\n`;
-    } else if (msg.role === 'assistant') {
-      conversationText += `Assistant: ${msg.content}\n\n`;
-    }
+  if (!lastUserMsg) {
+    throw new Error('No user message found');
   }
-  
-  conversationText += 'Assistant:';
 
-  // Create temp file with conversation
-  const fs = require('fs');
-  const path = require('path');
-  const tmpFile = path.join(require('os').tmpdir(), `chat-${Date.now()}.txt`);
+  // Build a prompt that includes context
+  let prompt = lastUserMsg;
   
-  fs.writeFileSync(tmpFile, conversationText, 'utf8');
+  // If there's a system message, prepend it
+  if (systemMessage) {
+    prompt = `${systemMessage}\n\n${prompt}`;
+  }
+
+  // Escape for shell
+  const escapedPrompt = prompt.replace(/"/g, '\\"').replace(/`/g, '\\`').replace(/\$/g, '\\$');
   
+  console.log(`[${new Date().toISOString()}] Generating with model: ${model}`);
+  console.log(`[${new Date().toISOString()}] Prompt length: ${prompt.length} chars`);
+
   try {
-    // Use simple one-shot prompt via stdin
     const { stdout, stderr } = await execAsync(
-      `type "${tmpFile}" | openclaw chat --model openai-codex`,
+      `acpx --format text --timeout 120 codex exec "${escapedPrompt}"`,
       {
-        maxBuffer: 1024 * 1024 * 10,
-        timeout: 120000,
-        shell: 'cmd.exe',
+        maxBuffer: 1024 * 1024 * 10, // 10MB
         env: {
           ...process.env,
         }
       }
     );
 
-    // Clean up temp file
-    fs.unlinkSync(tmpFile);
-
     if (stderr && !stderr.includes('Executing')) {
       console.error('[OAuth Proxy] stderr:', stderr);
     }
 
-    let response = stdout.trim();
+    const response = stdout.trim();
     
     if (!response) {
-      throw new Error('Empty response from OpenClaw');
-    }
-
-    console.log(`[${new Date().toISOString()}] Raw response: ${response.substring(0, 200)}...`);
-    
-    // If response contains ACP protocol markers, it means we're getting session output
-    // Just return an error message for now
-    if (response.includes('[client]') || response.includes('[done]')) {
-      throw new Error('OpenClaw returned ACP session output instead of chat completion. This OAuth method may not be compatible with Codex model. Try using Kimi K2.5 or Claude models instead.');
+      throw new Error('Empty response from acpx');
     }
 
     console.log(`[${new Date().toISOString()}] Response generated: ${response.length} chars`);
@@ -90,8 +72,6 @@ async function generateViaOAuth(messages, model = 'gpt-4o') {
     return response;
   } catch (error) {
     console.error('[OAuth Proxy] Error:', error.message);
-    // Clean up temp file on error
-    try { fs.unlinkSync(tmpFile); } catch {}
     throw error;
   }
 }

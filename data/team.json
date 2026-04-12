@@ -1,0 +1,78 @@
+[
+  {
+    "id": "agent-1",
+    "name": "Scot",
+    "role": "Primary Agent",
+    "model": "GPT-5.4",
+    "status": "active",
+    "currentTask": "Chatting, coordinating updates, and keeping Mission Control in sync",
+    "capabilities": [
+      "Mission control oversight",
+      "Primary agent coordination",
+      "Product direction",
+      "Fast day-to-day chat"
+    ],
+    "avatar": "SC"
+  },
+  {
+    "id": "agent-2",
+    "name": "Claude Sonnet 4.5",
+    "role": "Orchestrator / Default Claude",
+    "model": "Claude Sonnet 4.5",
+    "status": "available",
+    "currentTask": "Standing by for larger planning and orchestration tasks when needed",
+    "capabilities": [
+      "Task orchestration",
+      "Planning and delegation",
+      "General-purpose collaboration",
+      "Lower-cost Claude fallback"
+    ],
+    "avatar": "S4"
+  },
+  {
+    "id": "agent-3",
+    "name": "Claude Opus 4.6",
+    "role": "Complex Reasoning",
+    "model": "Claude Opus 4.6",
+    "status": "available",
+    "currentTask": "Reserved for deep analysis, strategy, and high-complexity reasoning",
+    "capabilities": [
+      "Complex reasoning",
+      "Strategic planning",
+      "Deep analysis",
+      "High-context decision support"
+    ],
+    "avatar": "O4"
+  },
+  {
+    "id": "agent-4",
+    "name": "Kimi K2.5",
+    "role": "Fallback / Ambient",
+    "model": "Kimi K2.5",
+    "status": "available",
+    "currentTask": "Standing by for fallback coverage and ambient assistance",
+    "capabilities": [
+      "Fallback coverage",
+      "Ambient assistance",
+      "General chat support",
+      "Cost-efficient overflow handling"
+    ],
+    "avatar": "K2"
+  },
+  {
+    "id": "agent-5",
+    "name": "GPT-5.4 / Codex",
+    "role": "Primary Execution",
+    "model": "GPT-5.4 / Codex",
+    "status": "active",
+    "currentTask": "Executing Mission Control Phase 1 VPS prep, production hardening, validation, and file updates",
+    "capabilities": [
+      "Coding and implementation",
+      "Codebase edits",
+      "Technical research",
+      "Execution-heavy workflows",
+      "Mission Control maintenance"
+    ],
+    "avatar": "CX"
+  }
+]

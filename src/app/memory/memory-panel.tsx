@@ -26,13 +26,6 @@ export function MemoryPanel({ initialNotes }: { initialNotes: MemoryNoteRecord[]
         <p>Persistent notes that are injected into every AI conversation. Pin important notes so they always appear first. Use chat: &quot;remember key = value&quot;.</p>
       </div>
 
-      <a 
-        href="#journal" 
-        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition inline-block mb-4"
-      >
-        ↑ Jump to Journal
-      </a>
-
       <button
         type="button"
         className="move-task-button"

@@ -9,7 +9,9 @@ export type DashboardKey =
   | 'tools'
   | 'systems'
   | 'automations'
+  | 'workflows'
   | 'memory'
+  | 'local-models'
   | 'content';
 
 export interface NavItem {
@@ -78,7 +80,9 @@ export const navItems: NavItem[] = [
   { key: 'tools', label: 'Tools', href: '/tools' },
   { key: 'systems', label: 'Systems', href: '/systems' },
   { key: 'automations', label: 'Automations', href: '/automations' },
+  { key: 'workflows', label: 'Workflows', href: '/workflows' },
   { key: 'memory', label: 'Memory / Journal', href: '/memory' },
+  { key: 'local-models', label: 'Local Models', href: '/local-models' },
   { key: 'content', label: 'Content', href: '/content', badge: 'Soon' },
 ];
 
@@ -260,15 +264,13 @@ export const aiBuilds: AIBuild[] = [
 
 export const tools = [
   'Mission Control VPS — self-hosted builder OS at app.missioncontroldb.online',
-  'Kimi K2.5 (Moonshot) — primary chat and task execution model (default)',
+  'Kimi K2.5 (Moonshot) — default chat and task execution model',
   'Claude Sonnet 4.5 (Anthropic) — orchestration and review',
   'Claude Opus 4.6 (Anthropic) — deep reasoning and strategy',
-  'GPT-5.4 (OpenAI) — task execution via ChatGPT subscription (Cloudflare Tunnel)',
   'Postgres 17 — persistent storage for tasks, journal, memory, chat, executions',
   'Docker + Caddy — containerized deployment with HTTPS',
-  'Cloudflare Tunnel — OAuth proxy bridge from Windows PC to VPS',
-  'Host-side usage monitor — Windows PowerShell 10-min refresh loop via SSH',
-  'Backup scripts — automated nightly Postgres dump with 7-day retention',
+  'Host-side usage monitor — Windows PowerShell refresh loop via SSH',
+  'Backup scripts — automated nightly dump with restore capability',
 ];
 
 export const systems = [
@@ -285,9 +287,6 @@ export const automations = [
   'Nightly VPS backup — Postgres dump with 7-day rolling retention (cron)',
   'System health monitoring — 30-second auto-refresh on the Systems dashboard',
   'Journal seeding — hardcoded entries auto-migrate to DB on first Memory page visit',
-  'GPT OAuth auto-start — Cloudflare tunnel launches on Windows login (optional)',
-  'Task execution persistence — outputs load from DB on page refresh',
-  'Code block parsing — automatic detection, syntax highlighting, copy/download buttons',
 ];
 
 export const journalEntries: JournalEntry[] = [
@@ -396,33 +395,12 @@ export const journalEntries: JournalEntry[] = [
     detail: 'Completed final UX and consistency pass. Fixed Usage page sidebar highlight. Home page now shows DB-backed journal count and active task count. Live Snapshot shows real active tasks instead of static AI build data. Team page updated to reflect actual model roster (GPT deferred). Tools and Automations pages updated to reflect real capabilities. All milestones A through H complete.',
     type: 'milestone',
   },
-  {
-    id: 'journal-16',
-    title: 'GPT OAuth via Cloudflare Tunnel integrated',
-    date: '2026-04-12',
-    detail: 'Implemented GPT-5.4 access via ChatGPT subscription using Cloudflare quick tunnels. SSH reverse tunnel initially attempted but consistently hung on Windows. Switched to Cloudflare Tunnel (cloudflared) which provides reliable connectivity from Windows PC OAuth proxy to VPS. Created auto-start scripts for Windows login. GPT-5.4 now available for task execution (works perfectly) and chat (returns ACP protocol output - task execution is the primary use case).',
-    type: 'ops',
-  },
-  {
-    id: 'journal-17',
-    title: 'Full deployment completed - Mission Control VPS operational',
-    date: '2026-04-12',
-    detail: 'Successfully deployed all v1 features to production VPS. Fixed deployment issues: SSH key path corrections, database username mismatches (mission_control vs dean), case-sensitive filename issues (Sidebar.tsx), docker-compose environment variable loading. All database migrations applied successfully (task_executions, journal_entries, memory_notes tables created). Container rebuilt and running stable.',
-    type: 'milestone',
-  },
-  {
-    id: 'journal-18',
-    title: 'Task execution output UI enhanced',
-    date: '2026-04-12',
-    detail: 'Added code block parsing with syntax highlighting, copy-to-clipboard, and download-as-file buttons. Long code blocks (>10 lines) now collapse by default with expand button. Fixed Show Output button persistence across page refreshes by loading executions from database on mount. Run Task button now hides after execution completes. Code blocks properly constrained to card width. Task execution fully functional with Kimi K2.5, Claude models, and GPT-5.4.',
-    type: 'milestone',
-  },
 ];
 
 export const recentActivity = [
-  'Mission Control VPS v1 fully deployed and operational — 2026-04-12',
-  'Task execution output UI complete — code parsing, copy/download, persistent output',
-  'GPT-5.4 OAuth integrated via Cloudflare Tunnel — works for task execution',
-  'All database migrations applied — task_executions, journal_entries, memory_notes',
-  'Production deployment verified — app.missioncontroldb.online running stable',
+  'All milestones complete — Mission Control VPS v1 is finished',
+  'Final polish pass — Home page shows live task/journal counts from DB',
+  'System health dashboard live — DB status, backup visibility, app uptime',
+  'Memory and journal system live — DB-backed with auto-journaling and AI context',
+  'Chat is a full control surface — tasks, journal, memory all from conversation',
 ];
