@@ -61,10 +61,36 @@ async function generateViaOAuth(messages, model = 'gpt-4o') {
       console.error('[OAuth Proxy] stderr:', stderr);
     }
 
-    const response = stdout.trim();
+    let response = stdout.trim();
     
     if (!response) {
       throw new Error('Empty response from acpx');
+    }
+
+    // Strip ACP protocol markers
+    // Remove [client] lines, [done] lines, etc.
+    response = response
+      .split('\n')
+      .filter(line => !line.match(/^\[(?:client|done|thinking)\]/))
+      .join('\n')
+      .trim();
+
+    // If response still contains "Understood. I'll..." it's the ACP acknowledgment
+    // Try to extract the actual content after it
+    if (response.includes('Understood.')) {
+      const parts = response.split('\n\n');
+      // Take the last substantial part that's not just "Understood"
+      for (let i = parts.length - 1; i >= 0; i--) {
+        const part = parts[i].trim();
+        if (part && !part.startsWith('Understood.') && part.length > 20) {
+          response = part;
+          break;
+        }
+      }
+    }
+    
+    if (!response || response === '') {
+      throw new Error('No content in acpx response after filtering');
     }
 
     console.log(`[${new Date().toISOString()}] Response generated: ${response.length} chars`);
