@@ -75,7 +75,7 @@ function TaskCard({
               status: lastExec.status,
               result: lastExec.result,
               error: lastExec.error,
-              modelName: lastExec.model_name,
+              modelName: lastExec.modelName || lastExec.model_name, // Support both formats
             });
             // Don't auto-show output on page load, let user click
           }
