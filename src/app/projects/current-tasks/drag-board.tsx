@@ -62,7 +62,8 @@ function TaskCard({
         }
         
         if (mounted) {
-          const executions = await response.json();
+          const data = await response.json();
+          const executions = data.executions || data; // Handle both formats
           console.log(`Loaded ${executions?.length || 0} executions for task ${task.id}`);
           
           if (executions && executions.length > 0) {
