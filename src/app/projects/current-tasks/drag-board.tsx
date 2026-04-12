@@ -52,15 +52,17 @@ function TaskCard({
 
   // Load the most recent execution for this task on mount
   useEffect(() => {
+    let mounted = true;
+    
     async function loadLastExecution() {
-      if (execResult || loadingExecution) return; // Already loaded or loading
+      if (loadingExecution) return; // Already loading
       
       setLoadingExecution(true);
       try {
         const response = await fetch(`/api/tasks/${task.id}/executions`);
-        if (response.ok) {
+        if (response.ok && mounted) {
           const executions = await response.json();
-          if (executions && executions.length > 0) {
+          if (executions && executions.length > 0 && mounted) {
             const lastExec = executions[0];
             setExecResult({
               success: lastExec.status === 'completed',
@@ -72,14 +74,22 @@ function TaskCard({
           }
         }
       } catch (error) {
-        console.error('Failed to load execution:', error);
+        if (mounted) {
+          console.error('Failed to load execution:', error);
+        }
       } finally {
-        setLoadingExecution(false);
+        if (mounted) {
+          setLoadingExecution(false);
+        }
       }
     }
     
     loadLastExecution();
-  }, [task.id]); // Only run when task.id changes
+    
+    return () => {
+      mounted = false;
+    };
+  }, [task.id, loadingExecution]); // Reload when task changes
 
   const style = {
     transform: CSS.Transform.toString(transform),
