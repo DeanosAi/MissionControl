@@ -10,9 +10,9 @@ Write-Host "=== Mission Control - Auto-Start Setup ===" -ForegroundColor Cyan
 Write-Host ""
 
 # Paths
-$scriptPath = "$PSScriptRoot\start-gpt-oauth-cloudflare.ps1"
+$scriptPath = "$PSScriptRoot\start-gpt-oauth-with-vps-update.ps1"
 $taskName = "MissionControl-GPT-OAuth"
-$taskDescription = "Auto-start Mission Control GPT OAuth tunnel on login"
+$taskDescription = "Auto-start Mission Control GPT OAuth tunnel with VPS auto-update on login"
 
 # Check if script exists
 if (-not (Test-Path $scriptPath)) {
