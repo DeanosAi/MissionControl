@@ -18,7 +18,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 
 import type { TaskRecord, TaskStatus } from '@/lib/tasks';
 import { executeTaskAction, moveTaskQuickAction, type ExecuteTaskResult } from './actions';
@@ -47,6 +47,38 @@ function TaskCard({
   const [executing, setExecuting] = useState(false);
   const [execResult, setExecResult] = useState<ExecuteTaskResult | null>(null);
   const [showOutput, setShowOutput] = useState(false);
+  const [loadingExecution, setLoadingExecution] = useState(false);
+
+  // Load the most recent execution for this task on mount
+  useEffect(() => {
+    async function loadLastExecution() {
+      if (execResult || loadingExecution) return; // Already loaded or loading
+      
+      setLoadingExecution(true);
+      try {
+        const response = await fetch(`/api/tasks/${task.id}/executions`);
+        if (response.ok) {
+          const executions = await response.json();
+          if (executions && executions.length > 0) {
+            const lastExec = executions[0];
+            setExecResult({
+              success: lastExec.status === 'completed',
+              status: lastExec.status,
+              result: lastExec.result,
+              error: lastExec.error,
+              modelName: lastExec.model_name,
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load execution:', error);
+      } finally {
+        setLoadingExecution(false);
+      }
+    }
+    
+    loadLastExecution();
+  }, [task.id]); // Only run when task.id changes
 
   const style = {
     transform: CSS.Transform.toString(transform),
