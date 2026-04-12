@@ -56,10 +56,19 @@ function TaskCard({
     async function loadLastExecution() {
       try {
         const response = await fetch(`/api/tasks/${task.id}/executions`);
-        if (response.ok && mounted) {
+        if (!response.ok) {
+          console.log(`No executions found for task ${task.id}`);
+          return;
+        }
+        
+        if (mounted) {
           const executions = await response.json();
-          if (executions && executions.length > 0 && mounted) {
+          console.log(`Loaded ${executions?.length || 0} executions for task ${task.id}`);
+          
+          if (executions && executions.length > 0) {
             const lastExec = executions[0];
+            console.log('Last execution:', lastExec);
+            
             setExecResult({
               success: lastExec.status === 'completed',
               status: lastExec.status,
@@ -67,12 +76,12 @@ function TaskCard({
               error: lastExec.error,
               modelName: lastExec.model_name,
             });
-            // Don't auto-show output, let user click to reveal
+            // Don't auto-show output on page load, let user click
           }
         }
       } catch (error) {
         if (mounted) {
-          console.error('Failed to load execution:', error);
+          console.error(`Failed to load execution for task ${task.id}:`, error);
         }
       }
     }
@@ -112,6 +121,7 @@ function TaskCard({
   }
 
   const canRun = !!task.assignedAi && !executing && task.status !== 'done' && task.status !== 'archived';
+  const hasExecution = !!execResult;
 
   return (
     <div ref={setNodeRef} style={style} className="kanban-card drag-task-card">
@@ -141,19 +151,24 @@ function TaskCard({
         {task.recurring ? <p className="micro-copy">Recurring: {task.recurring}</p> : null}
       </div>
 
-      {/* Run Task button (Milestone D) */}
+      {/* Task execution controls (Milestone D) */}
       {!dragOverlay && (
         <div className="task-execution-controls">
-          <button
-            type="button"
-            className={`run-task-button ${executing ? 'run-task-running' : ''}`}
-            disabled={!canRun}
-            onClick={handleRunTask}
-            title={!task.assignedAi ? 'Assign an AI model first' : executing ? 'Running…' : `Run task with ${task.assignedAi}`}
-          >
-            {executing ? '⟳ Running…' : '▶ Run Task'}
-          </button>
-          {execResult && (
+          {/* Show Run button only if no execution exists yet */}
+          {!hasExecution && (
+            <button
+              type="button"
+              className={`run-task-button ${executing ? 'run-task-running' : ''}`}
+              disabled={!canRun}
+              onClick={handleRunTask}
+              title={!task.assignedAi ? 'Assign an AI model first' : executing ? 'Running…' : `Run task with ${task.assignedAi}`}
+            >
+              {executing ? '⟳ Running…' : '▶ Run Task'}
+            </button>
+          )}
+          
+          {/* Show Output toggle button if execution exists */}
+          {hasExecution && (
             <button
               type="button"
               className="move-task-button"
