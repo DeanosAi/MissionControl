@@ -129,6 +129,7 @@ function IdeaCard({ idea, expanded, onToggle, onRefresh }: { idea: Idea; expande
   const [chatMsg, setChatMsg] = useState('');
   const [chatting, setChatting] = useState(false);
   const [localConvo, setLocalConvo] = useState(idea.conversationHistory);
+  const [deleting, setDeleting] = useState(false);
 
   const statusColors: Record<string, string> = {
     submitted: 'ghost', researching: 'highlight', researched: '', building: 'highlight', built: '', archived: 'ghost',
@@ -193,6 +194,42 @@ function IdeaCard({ idea, expanded, onToggle, onRefresh }: { idea: Idea; expande
     } catch (err) {
       alert(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
+  }
+
+  async function handleArchive() {
+    if (!confirm(`Archive "${idea.title}"?`)) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/ideas/${idea.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'archive' }),
+      });
+      if (res.ok) {
+        onRefresh();
+      } else {
+        alert('Failed to archive idea');
+      }
+    } catch (err) {
+      alert(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+    setDeleting(false);
+  }
+
+  async function handleDelete() {
+    if (!confirm(`Permanently delete "${idea.title}"? This cannot be undone.`)) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/ideas/${idea.id}`, { method: 'DELETE' });
+      if (res.ok) {
+        onRefresh();
+      } else {
+        alert('Failed to delete idea');
+      }
+    } catch (err) {
+      alert(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+    setDeleting(false);
   }
 
   return (
@@ -285,6 +322,16 @@ function IdeaCard({ idea, expanded, onToggle, onRefresh }: { idea: Idea; expande
                 {chatting ? '...' : 'Send'}
               </button>
             </div>
+          </div>
+
+          {/* Archive/Delete Actions */}
+          <div className="task-execution-controls" style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+            <button className="move-task-button" disabled={deleting} onClick={handleArchive}>
+              {deleting ? '...' : '📦 Archive'}
+            </button>
+            <button className="move-task-button delete-task-button" disabled={deleting} onClick={handleDelete}>
+              {deleting ? '...' : '🗑️ Delete'}
+            </button>
           </div>
         </div>
       )}
