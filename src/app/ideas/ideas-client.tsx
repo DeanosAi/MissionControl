@@ -136,7 +136,15 @@ function IdeaCard({ idea, expanded, onToggle, onRefresh }: { idea: Idea; expande
 
   async function handleResearch() {
     setResearching(true);
-    await fetch(`/api/ideas/${idea.id}/research`, { method: 'POST' });
+    try {
+      const res = await fetch(`/api/ideas/${idea.id}/research`, { method: 'POST' });
+      if (!res.ok) {
+        const error = await res.json();
+        alert(`Research failed: ${error.error || 'Unknown error'}`);
+      }
+    } catch (err) {
+      alert(`Research failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
     setResearching(false);
     onRefresh();
   }
@@ -159,18 +167,32 @@ function IdeaCard({ idea, expanded, onToggle, onRefresh }: { idea: Idea; expande
     setChatting(false);
   }
 
-  async function handleBuild(model: string) {
-    await fetch('/api/ideas', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+  async function handleBuild(modelName: string) {
+    try {
+      // Create task via server action
+      const taskData = {
         title: `Build: ${idea.title}`,
         description: idea.mvpCode || idea.codexPrompt || idea.description || idea.title,
-      }),
-    });
-    // Actually create as a task via the tasks API
-    // This is simplified — ideally calls createTask directly
-    alert(`Task created: "Build: ${idea.title}" assigned to ${model}`);
+        status: 'backlog',
+        priority: 'high',
+        assignedAi: modelName,
+        notes: `Auto-generated from idea: ${idea.id}`,
+      };
+      
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(taskData),
+      });
+      
+      if (res.ok) {
+        alert(`✅ Task created: "Build: ${idea.title}" assigned to ${modelName}\nCheck Current Tasks to run it!`);
+      } else {
+        alert('Failed to create task');
+      }
+    } catch (err) {
+      alert(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
   }
 
   return (
