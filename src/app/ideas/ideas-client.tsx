@@ -230,6 +230,15 @@ function IdeaCard({ idea, expanded, onToggle, onRefresh }: { idea: Idea; expande
             <div className="task-execution-output exec-success" style={{ marginBottom: '1rem' }}>
               <div className="exec-output-header"><span className="pill">Research Report</span></div>
               <div style={{ padding: '0.75rem' }}>
+                {/* Debug: show raw data if no structured fields */}
+                {!idea.researchData.market && !idea.researchData.technical && (
+                  <details style={{ marginBottom: '0.75rem' }}>
+                    <summary style={{ cursor: 'pointer', color: 'var(--cyan)' }}>Raw Research Data (Click to expand)</summary>
+                    <pre style={{ whiteSpace: 'pre-wrap', fontSize: '0.75rem', marginTop: '0.5rem' }}>
+                      {JSON.stringify(idea.researchData, null, 2)}
+                    </pre>
+                  </details>
+                )}
                 {idea.researchData.market && (
                   <div style={{ marginBottom: '0.75rem' }}>
                     <strong>Market:</strong> <span className={`pill ${idea.researchData.market.viability === 'high' ? '' : 'ghost'}`}>{idea.researchData.market.viability}</span>
