@@ -45,11 +45,23 @@ Provide your research in this exact JSON format (respond ONLY with JSON, no mark
     // Parse the research data
     let researchData: IdeaResearchData;
     try {
-      const cleaned = result.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-      researchData = JSON.parse(cleaned);
+      // Remove markdown code blocks
+      let cleaned = result.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+      
+      // Try parsing once
+      let parsed = JSON.parse(cleaned);
+      
+      // If the result is a string (double-encoded JSON), parse again
+      if (typeof parsed === 'string') {
+        console.log('[Research] Double-encoded JSON detected, parsing again...');
+        parsed = JSON.parse(parsed);
+      }
+      
+      researchData = parsed;
       console.log('[Research] Successfully parsed JSON');
     } catch (parseErr) {
       console.error('[Research] JSON parse failed:', parseErr);
+      console.error('[Research] Raw result:', result?.substring(0, 500));
       // If JSON parsing fails, store as raw text in market summary
       researchData = {
         market: { summary: result?.substring(0, 1000) || 'No response from AI', viability: 'unknown', notes: 'Raw research output (JSON parse failed)' },
