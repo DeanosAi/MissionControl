@@ -395,6 +395,41 @@ export const journalEntries: JournalEntry[] = [
     detail: 'Completed final UX and consistency pass. Fixed Usage page sidebar highlight. Home page now shows DB-backed journal count and active task count. Live Snapshot shows real active tasks instead of static AI build data. Team page updated to reflect actual model roster (GPT deferred). Tools and Automations pages updated to reflect real capabilities. All milestones A through H complete.',
     type: 'milestone',
   },
+  {
+    id: 'journal-16',
+    title: 'Mission Control v2 Deployment Started',
+    date: '2026-04-13',
+    detail: 'Began deployment of Mission Control VPS v2 features built by Claude Opus 4.6. Deployed Milestones I-M: Google Workspace Integration, Ideas Page with Kimi Research, Automations (Cron Jobs), N8N Workflow Integration, and Local LLM Support. Fixed critical double-JSON encoding bug in research data storage using sql.json().',
+    type: 'milestone',
+  },
+  {
+    id: 'journal-17',
+    title: 'Ideas Page Bug Fixes and Stabilization',
+    date: '2026-04-13',
+    detail: 'Fixed multiple critical bugs in the Ideas Page: research report double-encoding (now uses sql.json()), chat persistence issues (conversation history now survives page refreshes), and report display toggle (Show/Hide now works correctly). Applied 4 successive fixes from Opus to stabilize the feature.',
+    type: 'ops',
+  },
+  {
+    id: 'journal-18',
+    title: 'Build Buttons and Projects Page Enhancement',
+    date: '2026-04-13',
+    detail: 'Added "Build This Idea" buttons to researched ideas with three model options (Kimi, Sonnet, Opus). Clicking creates fully-scoped tasks in Current Tasks with complete research briefs. Updated Projects page to show real database tasks in a live kanban view instead of hardcoded data.',
+    type: 'milestone',
+  },
+  {
+    id: 'journal-19',
+    title: 'OpenClaw Configuration Updates',
+    date: '2026-04-14',
+    detail: 'Updated OpenClaw configuration: added GPT-5.4, GPT-5.4 Mini, GPT-5 Mini Chat, and Azure OpenAI models. Changed default model from Claude Sonnet 4.5 to Kimi K2.5 for cost-effectiveness ($0.30/1M tokens). Configured OAuth profiles for Codex models.',
+    type: 'decision',
+  },
+  {
+    id: 'journal-20',
+    title: 'Mission Control v2 Deployment Complete',
+    date: '2026-04-14',
+    detail: 'Completed full deployment of Mission Control VPS v2. All features operational: Ideas Page with research and build buttons, Google Workspace integration (requires OAuth setup), Automations (requires cron), N8N integration (requires N8N install), Local LLM support. Critical bugs fixed. VPS fully operational at app.missioncontroldb.online.',
+    type: 'milestone',
+  },
 ];
 
 export const recentActivity = [
