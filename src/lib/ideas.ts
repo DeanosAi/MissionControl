@@ -35,22 +35,35 @@ interface IdeaRow {
   title: string;
   description: string | null;
   status: IdeaStatus;
-  research_data: IdeaResearchData | null;
-  conversation_history: IdeaConversationMessage[];
+  research_data: IdeaResearchData | string | null;
+  conversation_history: IdeaConversationMessage[] | string | null;
   mvp_code: string | null;
   codex_prompt: string | null;
   created_at: Date;
   updated_at: Date;
 }
 
+/** Safely parse a JSONB value that might arrive as a string, object, or null */
+function safeJsonParse<T>(val: T | string | null, fallback: T): T {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val === 'object') return val as T;
+  if (typeof val === 'string') {
+    try { return JSON.parse(val); } catch { return fallback; }
+  }
+  return fallback;
+}
+
 function mapRow(row: IdeaRow): IdeaRecord {
+  const convo = safeJsonParse<IdeaConversationMessage[]>(row.conversation_history, []);
+  const research = safeJsonParse<IdeaResearchData | null>(row.research_data, null);
+
   return {
     id: row.id,
     title: row.title,
     description: row.description,
     status: row.status,
-    researchData: row.research_data,
-    conversationHistory: row.conversation_history || [],
+    researchData: research,
+    conversationHistory: Array.isArray(convo) ? convo : [],
     mvpCode: row.mvp_code,
     codexPrompt: row.codex_prompt,
     createdAt: row.created_at.toISOString(),
@@ -83,8 +96,8 @@ export async function getIdea(id: string): Promise<IdeaRecord | null> {
 export async function createIdea(title: string, description?: string): Promise<IdeaRecord> {
   const sql = getDb();
   const [row] = await sql<IdeaRow[]>`
-    INSERT INTO mission_control.ideas (title, description)
-    VALUES (${title}, ${description ?? null})
+    INSERT INTO mission_control.ideas (title, description, conversation_history)
+    VALUES (${title}, ${description ?? null}, '[]'::jsonb)
     RETURNING *
   `;
   return mapRow(row);
@@ -92,16 +105,16 @@ export async function createIdea(title: string, description?: string): Promise<I
 
 export async function updateIdeaStatus(id: string, status: IdeaStatus): Promise<void> {
   const sql = getDb();
-  await sql`
-    UPDATE mission_control.ideas SET status = ${status}, updated_at = NOW() WHERE id = ${id}
-  `;
+  await sql`UPDATE mission_control.ideas SET status = ${status}, updated_at = NOW() WHERE id = ${id}`;
 }
 
 export async function appendConversation(id: string, message: IdeaConversationMessage): Promise<void> {
   const sql = getDb();
+  // Use sql.json() for the array element to avoid double-encoding.
+  // The || operator concatenates two JSONB values.
   await sql`
     UPDATE mission_control.ideas
-    SET conversation_history = conversation_history || ${JSON.stringify([message])}::jsonb,
+    SET conversation_history = COALESCE(conversation_history, '[]'::jsonb) || ${sql.json([message] as any)},
         updated_at = NOW()
     WHERE id = ${id}
   `;
@@ -109,9 +122,12 @@ export async function appendConversation(id: string, message: IdeaConversationMe
 
 export async function saveResearchData(id: string, data: IdeaResearchData): Promise<void> {
   const sql = getDb();
+  // CRITICAL: Use sql.json() to avoid double-encoding.
+  // JSON.stringify + ::jsonb was causing data to be stored as a JSONB string
+  // instead of a JSONB object, which is the root cause of the "malformed" bug.
   await sql`
     UPDATE mission_control.ideas
-    SET research_data = ${JSON.stringify(data)}::jsonb, status = 'researched', updated_at = NOW()
+    SET research_data = ${sql.json(data as any)}, status = 'researched', updated_at = NOW()
     WHERE id = ${id}
   `;
 }
