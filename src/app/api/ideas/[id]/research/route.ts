@@ -14,78 +14,94 @@ export async function POST(
 
   try {
     await updateIdeaStatus(id, 'researching');
-    
-    console.log('[Research] Starting research for idea:', id, idea.title);
 
-    const researchPrompt = `You are a startup research analyst. Thoroughly research this idea and provide a structured report.
+    const researchPrompt = `Analyze this startup/product idea and provide a structured research report.
 
-## Idea: ${idea.title}
-${idea.description ? `## Description: ${idea.description}` : ''}
+IDEA: ${idea.title}
+${idea.description ? `DESCRIPTION: ${idea.description}` : ''}
 
-Provide your research in this exact JSON format (respond ONLY with JSON, no markdown):
-{
-  "market": { "summary": "market overview", "viability": "high|medium|low", "notes": "key insights" },
-  "technical": { "feasibility": "assessment", "stack": "recommended tech stack", "complexity": "low|medium|high" },
-  "competition": { "competitors": ["competitor1", "competitor2"], "differentiation": "what makes this unique" },
-  "estimate": { "cost": "estimated cost range", "time": "estimated timeline", "resources": "what's needed" }
-}`;
+You MUST respond with ONLY a JSON object. No text before it. No text after it. No markdown code fences. Just raw JSON.
 
-    console.log('[Research] Calling Kimi API...');
+The JSON must have exactly this structure:
+{"market":{"summary":"2-3 sentences about market demand and target users","viability":"high","notes":"key market insights"},"technical":{"feasibility":"2-3 sentences about how to build this","stack":"recommended technologies","complexity":"medium"},"competition":{"competitors":["Competitor A","Competitor B"],"differentiation":"what makes this idea unique"},"estimate":{"cost":"dollar range estimate","time":"timeline estimate","resources":"what is needed to build"}}
+
+Use "high", "medium", or "low" for viability and complexity. Fill every field with real analysis.`;
+
     const result = await generateChatCompletion(
       [
-        { role: 'system', content: 'You are a thorough startup research analyst. Respond ONLY with valid JSON, no other text.' },
+        { role: 'system', content: 'You are a startup analyst. Respond with ONLY a raw JSON object. No markdown. No explanation. No code fences. Just the JSON.' },
         { role: 'user', content: researchPrompt },
       ],
       { model: 'kimi-k2.5', maxTokens: 4000 },
     );
-    
-    console.log('[Research] Kimi response length:', result?.length, 'chars');
-    console.log('[Research] First 200 chars:', result?.substring(0, 200));
 
-    // Parse the research data
-    let researchData: IdeaResearchData;
-    try {
-      // Remove markdown code blocks
-      let cleaned = result.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-      
-      // Try parsing once
-      let parsed = JSON.parse(cleaned);
-      
-      // If the result is a string (double-encoded JSON), parse again
-      if (typeof parsed === 'string') {
-        console.log('[Research] Double-encoded JSON detected, parsing again...');
-        parsed = JSON.parse(parsed);
-      }
-      
-      researchData = parsed;
-      console.log('[Research] Successfully parsed JSON');
-    } catch (parseErr) {
-      console.error('[Research] JSON parse failed:', parseErr);
-      console.error('[Research] Raw result:', result?.substring(0, 500));
-      // If JSON parsing fails, store as raw text in market summary
-      researchData = {
-        market: { summary: result?.substring(0, 1000) || 'No response from AI', viability: 'unknown', notes: 'Raw research output (JSON parse failed)' },
-        technical: { feasibility: 'See market summary', stack: 'TBD', complexity: 'medium' },
-        competition: { competitors: [], differentiation: 'See market summary' },
-        estimate: { cost: 'TBD', time: 'TBD', resources: 'TBD' },
-      };
-    }
+    // Extract and parse JSON from the response
+    const researchData = extractAndValidateResearch(result);
 
-    console.log('[Research] Saving research data...');
     await saveResearchData(id, researchData);
-    
-    console.log('[Research] Appending conversation...');
+
     await appendConversation(id, {
       role: 'assistant',
-      content: `Research complete for "${idea.title}". Report covers market viability, technical feasibility, competition, and cost/time estimates.`,
+      content: `Research complete for "${idea.title}". Expand the Research Report to see the full analysis.`,
       timestamp: new Date().toISOString(),
     });
 
-    console.log('[Research] Complete!');
-    return Response.json({ success: true, researchData });
+    const updated = await getIdea(id);
+    return Response.json(updated);
   } catch (err) {
-    console.error('[Research] Error:', err);
-    await updateIdeaStatus(id, 'submitted'); // rollback status
+    console.error('Research error:', err);
+    await updateIdeaStatus(id, 'submitted');
     return Response.json({ error: err instanceof Error ? err.message : 'Research failed' }, { status: 500 });
   }
+}
+
+/**
+ * Extracts a valid research JSON object from the AI response.
+ * Handles: raw JSON, markdown-fenced JSON, JSON embedded in text,
+ * and double-encoded strings.
+ */
+function extractAndValidateResearch(raw: string): IdeaResearchData {
+  const attempts: (() => IdeaResearchData)[] = [
+    // 1. Direct parse
+    () => JSON.parse(raw.trim()),
+
+    // 2. Strip markdown fences
+    () => JSON.parse(raw.replace(/^```(?:json)?\s*/gm, '').replace(/```\s*$/gm, '').trim()),
+
+    // 3. Extract first { ... } block
+    () => {
+      const start = raw.indexOf('{');
+      const end = raw.lastIndexOf('}');
+      if (start === -1 || end <= start) throw new Error('no braces');
+      return JSON.parse(raw.substring(start, end + 1));
+    },
+
+    // 4. Handle double-encoded: the whole thing might be a JSON string containing JSON
+    () => {
+      const unescaped = raw.replace(/\\"/g, '"').replace(/\\n/g, '\n');
+      const start = unescaped.indexOf('{');
+      const end = unescaped.lastIndexOf('}');
+      if (start === -1 || end <= start) throw new Error('no braces');
+      return JSON.parse(unescaped.substring(start, end + 1));
+    },
+  ];
+
+  for (const attempt of attempts) {
+    try {
+      const parsed = attempt();
+      // Validate it has at least one expected section
+      if (parsed && typeof parsed === 'object' && (parsed.market || parsed.technical || parsed.competition || parsed.estimate)) {
+        return parsed;
+      }
+    } catch { /* try next */ }
+  }
+
+  // Fallback: build structured data from the raw text
+  const cleanText = raw.replace(/[{}"\\]/g, ' ').replace(/\s+/g, ' ').trim();
+  return {
+    market: { summary: cleanText.substring(0, 400), viability: 'unknown', notes: '' },
+    technical: { feasibility: 'See market summary for full analysis.', stack: 'To be determined', complexity: 'medium' },
+    competition: { competitors: [], differentiation: 'See market summary.' },
+    estimate: { cost: 'To be determined', time: 'To be determined', resources: 'To be determined' },
+  };
 }
