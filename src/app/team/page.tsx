@@ -1,61 +1,63 @@
 import { DashboardShell } from '@/components/dashboard-shell';
 import { SectionHeader } from '@/components/section-header';
 
-const team = [
+const capabilityTeam = [
   {
-    name: 'Scot',
-    role: 'Mission Control AI Assistant',
-    model: 'Multi-model (Kimi / Claude)',
+    name: 'Decision Engine',
+    role: 'Central reasoning service',
     status: 'active',
-    currentTask: 'Chat interface, task execution, journal and memory management across all models.',
-    capabilities: ['Mission control chat', 'Task execution', 'Journal auto-logging', 'Memory context management'],
-    avatar: 'SC',
+    currentTask: 'Understands intent, retrieves context and memory, compares solutions, critiques them, and recommends one before approval.',
+    capabilities: ['Reasoning', 'Planning', 'Product design', 'Architecture', 'Constructive challenge'],
+    avatar: 'DE',
   },
   {
-    name: 'Kimi K2.5',
-    role: 'Default Chat & Execution',
-    model: 'Kimi K2.5 (Moonshot)',
+    name: 'Product & UI',
+    role: 'Experience design capability',
     status: 'active',
-    currentTask: 'Primary chat model and default task execution engine.',
-    capabilities: ['General chat', 'Task execution', 'Long context reasoning', 'Cost-efficient default'],
-    avatar: 'K2',
+    currentTask: 'Turns the recommended approach into a plain-English proposal and an intentionally designed UI concept.',
+    capabilities: ['Product planning', 'UX design', 'UI design', 'Acceptance criteria', 'Mobile-first flow'],
+    avatar: 'UX',
   },
   {
-    name: 'Claude Sonnet 4.5',
-    role: 'Orchestrator',
-    model: 'Claude Sonnet 4.5 (Anthropic)',
+    name: 'Research Engine',
+    role: 'Evidence and technology watch',
     status: 'active',
-    currentTask: 'Available for orchestration, planning, and task execution.',
-    capabilities: ['Task orchestration', 'Planning and review', 'Balanced speed and capability', 'Task execution'],
-    avatar: 'S4',
+    currentTask: 'Evaluates changes weekly and produces Recommended, Optional, or Not Recommended reports for review.',
+    capabilities: ['Research', 'Technology evaluation', 'Cost review', 'Migration analysis', 'Source provenance'],
+    avatar: 'RE',
   },
   {
-    name: 'Claude Opus 4.6',
-    role: 'Deep Reasoning',
-    model: 'Claude Opus 4.6 (Anthropic)',
+    name: 'Quality & Risk',
+    role: 'Critique capability',
     status: 'active',
-    currentTask: 'Reserved for deep analysis, strategy, and high-complexity tasks.',
-    capabilities: ['Complex reasoning', 'Strategic planning', 'Deep analysis', 'High-context task execution'],
-    avatar: 'O4',
+    currentTask: 'Tests assumptions against maintainability, security, reliability, cost, and user friction before a recommendation is shown.',
+    capabilities: ['Testing', 'Security', 'Risk analysis', 'Reliability', 'Trade-off critique'],
+    avatar: 'QA',
   },
   {
-    name: 'GPT-5.4 / Codex',
-    role: 'Primary Execution (OAuth)',
-    model: 'GPT-5.4 / Codex (OpenAI)',
+    name: 'Capability Router',
+    role: 'Model-agnostic provider selection',
     status: 'active',
-    currentTask: 'Available via OAuth tunnel when host PC is online. Falls back to Kimi K2.5 when offline.',
-    capabilities: ['Coding and implementation', 'Codebase edits', 'Technical research', 'OAuth subscription (no API credits)'],
-    avatar: 'CX',
+    currentTask: 'Selects an available model by capability, cost, speed, reliability, context, privacy, locality, and measured performance.',
+    capabilities: ['Value routing', 'Cost thresholds', 'Provider fallback', 'Local models', 'Continuous learning'],
+    avatar: 'CR',
   },
 ];
 
 export default function TeamPage() {
   return (
-    <DashboardShell active="team" title="Meet the AI team." subtitle="A dedicated roster for the models involved in Mission Control, including what each one is for and where they fit best.">
+    <DashboardShell
+      active="team"
+      title="Mission Control capabilities"
+      subtitle="The operating roles remain stable while Mission Control chooses whichever approved model can provide each capability best."
+    >
       <section className="card page-team-accent">
-        <SectionHeader title="Team" subtitle="Roles and responsibilities carried over from the original Mission Control concept." />
+        <SectionHeader
+          title="Capability team"
+          subtitle="Roles describe the work. Provider names stay behind the routing layer and can change without redesigning the workflow."
+        />
         <div className="team-grid">
-          {team.map((member) => (
+          {capabilityTeam.map((member) => (
             <article key={member.name} className="team-card page-team-accent">
               <div className="team-top">
                 <div className="team-avatar">{member.avatar}</div>
@@ -64,10 +66,6 @@ export default function TeamPage() {
                   <p>{member.role}</p>
                 </div>
                 <span className="pill highlight">{member.status}</span>
-              </div>
-              <div className="team-meta team-model-line">
-                <span className="micro-copy">Model </span>
-                <strong>{member.model}</strong>
               </div>
               <p className="team-task">{member.currentTask}</p>
               <div className="pill-row left">

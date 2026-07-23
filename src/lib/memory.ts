@@ -1,6 +1,13 @@
 import 'server-only';
 
-import { getDb } from '@/lib/db';
+import {
+  deleteDomainMemory,
+  getDomainMemoryByKey,
+  listDomainMemory,
+  setDomainMemoryImportance,
+} from '@/lib/memory-domains/repository';
+import { getUnifiedMemoryContext } from '@/lib/memory-domains/retrieval';
+import { rememberUserMemory } from '@/lib/memory-domains/user-memory';
 
 export type MemoryCategory = 'context' | 'preference' | 'fact' | 'instruction';
 
@@ -21,107 +28,76 @@ export interface CreateMemoryInput {
   pinned?: boolean;
 }
 
-type MemoryRow = {
-  id: string;
-  key: string;
-  content: string;
-  category: MemoryCategory;
-  pinned: boolean;
-  created_at: Date;
-  updated_at: Date;
-};
+function categoryFromMetadata(metadata: Record<string, unknown>): MemoryCategory {
+  const value = metadata.category ?? metadata.legacyCategory;
+  return value === 'preference' || value === 'fact' || value === 'instruction'
+    ? value
+    : 'context';
+}
 
-function mapRow(row: MemoryRow): MemoryNoteRecord {
+function mapUserMemory(record: Awaited<ReturnType<typeof listDomainMemory>>[number]): MemoryNoteRecord {
   return {
-    id: row.id,
-    key: row.key,
-    content: row.content,
-    category: row.category,
-    pinned: row.pinned,
-    createdAt: row.created_at.toISOString(),
-    updatedAt: row.updated_at.toISOString(),
+    id: record.id,
+    key: record.key,
+    content: record.content,
+    category: categoryFromMetadata(record.metadata),
+    pinned: record.importance >= 9 || record.metadata.pinned === true,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
   };
 }
 
-/** List all memory notes, pinned first */
+/**
+ * Existing Memory-page facade.
+ * Sprint 1.5 keeps the UI contract intact while persisting new notes in User Memory.
+ */
 export async function listMemoryNotes(): Promise<MemoryNoteRecord[]> {
-  const sql = getDb();
-  const rows = await sql<MemoryRow[]>`
-    SELECT id, key, content, category, pinned, created_at, updated_at
-    FROM mission_control.memory_notes
-    ORDER BY pinned DESC, updated_at DESC
-  `;
-  return rows.map(mapRow);
+  const records = await listDomainMemory({
+    domains: ['user'],
+    includeArchived: false,
+    limit: 250,
+  });
+  return records
+    .map(mapUserMemory)
+    .sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.updatedAt.localeCompare(a.updatedAt));
 }
 
-/** Get a memory note by key */
 export async function getMemoryByKey(key: string): Promise<MemoryNoteRecord | null> {
-  const sql = getDb();
-  const [row] = await sql<MemoryRow[]>`
-    SELECT id, key, content, category, pinned, created_at, updated_at
-    FROM mission_control.memory_notes
-    WHERE key = ${key}
-    LIMIT 1
-  `;
-  return row ? mapRow(row) : null;
+  const record = await getDomainMemoryByKey('user', key);
+  return record ? mapUserMemory(record) : null;
 }
 
-/** Create or update a memory note (upsert by key) */
 export async function upsertMemoryNote(input: CreateMemoryInput): Promise<MemoryNoteRecord> {
-  const sql = getDb();
-  const category = input.category ?? 'context';
-  const pinned = input.pinned ?? false;
-  const [row] = await sql<MemoryRow[]>`
-    INSERT INTO mission_control.memory_notes (key, content, category, pinned)
-    VALUES (${input.key}, ${input.content}, ${category}, ${pinned})
-    ON CONFLICT (key) DO UPDATE SET
-      content = EXCLUDED.content,
-      category = EXCLUDED.category,
-      pinned = EXCLUDED.pinned,
-      updated_at = NOW()
-    RETURNING id, key, content, category, pinned, created_at, updated_at
-  `;
-  return mapRow(row);
+  const record = await rememberUserMemory({
+    key: input.key,
+    title: input.key,
+    content: input.content,
+    summary: input.content,
+    source: 'curated-memory',
+    importance: input.pinned ? 10 : input.category === 'instruction' ? 8 : 7,
+    metadata: {
+      category: input.category ?? 'context',
+      pinned: input.pinned ?? false,
+    },
+  });
+  return mapUserMemory(record);
 }
 
-/** Delete a memory note */
 export async function deleteMemoryNote(id: string): Promise<void> {
-  const sql = getDb();
-  await sql`
-    DELETE FROM mission_control.memory_notes
-    WHERE id = ${id}
-  `;
+  await deleteDomainMemory(id);
 }
 
-/** Toggle pin status */
 export async function toggleMemoryPin(id: string): Promise<void> {
-  const sql = getDb();
-  await sql`
-    UPDATE mission_control.memory_notes
-    SET pinned = NOT pinned, updated_at = NOW()
-    WHERE id = ${id}
-  `;
+  const notes = await listMemoryNotes();
+  const note = notes.find((item) => item.id === id);
+  if (!note) return;
+  await setDomainMemoryImportance(id, note.pinned ? 7 : 10);
 }
 
-/** Build AI-readable memory context from all notes */
-export async function getMemoryContext(): Promise<string> {
-  const notes = await listMemoryNotes();
-  if (notes.length === 0) return '';
-
-  const pinned = notes.filter(n => n.pinned);
-  const other = notes.filter(n => !n.pinned);
-
-  let ctx = 'Curated memory notes:\n';
-  if (pinned.length > 0) {
-    ctx += 'PINNED:\n';
-    for (const n of pinned) {
-      ctx += `- [${n.key}] ${n.content}\n`;
-    }
-  }
-  if (other.length > 0) {
-    for (const n of other.slice(0, 10)) {
-      ctx += `- [${n.key}] ${n.content}\n`;
-    }
-  }
-  return ctx;
+/** Build unified AI-readable context across all specialised memory domains. */
+export async function getMemoryContext(query = 'current priorities preferences approvals recurring workflows decisions'): Promise<string> {
+  return getUnifiedMemoryContext({
+    query,
+    limit: 20,
+  });
 }

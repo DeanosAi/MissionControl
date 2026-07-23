@@ -3,6 +3,7 @@ import 'server-only';
 import { getDb } from '@/lib/db';
 import {
   proposalSchema,
+  routingDecisionSummarySchema,
   uiPreviewSchema,
   type OrchestrationRequestRecord,
   type OrchestrationStatus,
@@ -10,6 +11,10 @@ import {
   type Proposal,
   type UiPreview,
 } from '@/lib/conversational-bridge/types';
+import {
+  decisionAnalysisSchema,
+  type DecisionAnalysis,
+} from '@/lib/decision-engine/types';
 
 type RequestRow = {
   id: string;
@@ -23,9 +28,15 @@ type RequestRow = {
   status: OrchestrationStatus;
   proposal: unknown;
   ui_preview: unknown;
+  decision_analysis: unknown;
+  routing_decision: unknown;
   selected_model_id: string | null;
   selected_model_name: string | null;
   selected_model_provider: string | null;
+  estimated_planning_cost_usd: string | number | null;
+  cost_threshold_usd: string | number | null;
+  cost_approved_at: Date | null;
+  constitution_version: string;
   revision: number;
   decision_note: string | null;
   approved_at: Date | null;
@@ -48,6 +59,8 @@ function normalizeJson(value: unknown): unknown {
 function mapRequestRow(row: RequestRow): OrchestrationRequestRecord {
   const proposal = proposalSchema.safeParse(normalizeJson(row.proposal));
   const uiPreview = uiPreviewSchema.safeParse(normalizeJson(row.ui_preview));
+  const decisionAnalysis = decisionAnalysisSchema.safeParse(normalizeJson(row.decision_analysis));
+  const routingDecision = routingDecisionSummarySchema.safeParse(normalizeJson(row.routing_decision));
   return {
     id: row.id,
     projectId: row.project_id,
@@ -60,9 +73,17 @@ function mapRequestRow(row: RequestRow): OrchestrationRequestRecord {
     status: row.status,
     proposal: proposal.success ? proposal.data : null,
     uiPreview: uiPreview.success ? uiPreview.data : null,
+    decisionAnalysis: decisionAnalysis.success ? decisionAnalysis.data : null,
+    routingDecision: routingDecision.success ? routingDecision.data : null,
     selectedModelId: row.selected_model_id,
     selectedModelName: row.selected_model_name,
     selectedModelProvider: row.selected_model_provider,
+    estimatedPlanningCostUsd: row.estimated_planning_cost_usd === null
+      ? null
+      : Number(row.estimated_planning_cost_usd),
+    costThresholdUsd: row.cost_threshold_usd === null ? null : Number(row.cost_threshold_usd),
+    costApprovedAt: row.cost_approved_at?.toISOString() ?? null,
+    constitutionVersion: row.constitution_version,
     revision: row.revision,
     decisionNote: row.decision_note,
     approvedAt: row.approved_at?.toISOString() ?? null,
@@ -75,7 +96,9 @@ const requestSelect = `
   SELECT r.id, r.project_id, p.title AS project_title, p.parent_project_id,
          parent.title AS parent_project_title, r.original_request, r.normalized_intent,
          r.classification, r.status, r.proposal, r.ui_preview, r.selected_model_id,
-         r.selected_model_name, r.selected_model_provider, r.revision, r.decision_note,
+         r.decision_analysis, r.routing_decision, r.selected_model_name,
+         r.selected_model_provider, r.estimated_planning_cost_usd, r.cost_threshold_usd,
+         r.cost_approved_at, r.constitution_version, r.revision, r.decision_note,
          r.approved_at, r.created_at, r.updated_at
   FROM mission_control.orchestration_requests r
   JOIN mission_control.projects p ON p.id = r.project_id
@@ -127,6 +150,8 @@ export async function saveRequestProposal(input: {
   id: string;
   proposal: Proposal;
   uiPreview: UiPreview;
+  decisionAnalysis: DecisionAnalysis;
+  routingDecision: import('@/lib/conversational-bridge/types').RoutingDecisionSummary;
   modelId: string;
   modelName: string;
   modelProvider: string;
@@ -137,9 +162,13 @@ export async function saveRequestProposal(input: {
     UPDATE mission_control.orchestration_requests
     SET proposal = ${sql.json(input.proposal)},
         ui_preview = ${sql.json(input.uiPreview)},
+        decision_analysis = ${sql.json(input.decisionAnalysis)},
+        routing_decision = ${sql.json(input.routingDecision)},
         selected_model_id = ${input.modelId},
         selected_model_name = ${input.modelName},
         selected_model_provider = ${input.modelProvider},
+        estimated_planning_cost_usd = ${input.routingDecision.selected.estimatedCostUsd},
+        cost_threshold_usd = ${input.routingDecision.costThresholdUsd},
         status = 'proposal-ready',
         decision_note = NULL,
         revision = revision + ${input.incrementRevision ? 1 : 0},
@@ -148,6 +177,47 @@ export async function saveRequestProposal(input: {
   `;
   const request = await getOrchestrationRequest(input.id);
   if (!request) throw new Error('Proposal saved but could not be reloaded.');
+  return request;
+}
+
+export async function markRequestCostApprovalRequired(input: {
+  id: string;
+  routingDecision: import('@/lib/conversational-bridge/types').RoutingDecisionSummary;
+  note: string;
+}): Promise<OrchestrationRequestRecord> {
+  const sql = getDb();
+  await sql`
+    UPDATE mission_control.orchestration_requests
+    SET status = 'cost-approval-required',
+        routing_decision = ${sql.json(input.routingDecision)},
+        estimated_planning_cost_usd = ${input.routingDecision.selected.estimatedCostUsd},
+        cost_threshold_usd = ${input.routingDecision.costThresholdUsd},
+        decision_note = ${input.note.slice(0, 1000)},
+        updated_at = NOW()
+    WHERE id = ${input.id}
+  `;
+  const request = await getOrchestrationRequest(input.id);
+  if (!request) throw new Error('The cost pause was saved but could not be reloaded.');
+  return request;
+}
+
+export async function approveRequestPlanningCost(id: string): Promise<OrchestrationRequestRecord> {
+  const sql = getDb();
+  const result = await sql`
+    UPDATE mission_control.orchestration_requests
+    SET status = 'planning',
+        cost_approved_at = NOW(),
+        decision_note = 'Planning cost explicitly approved.',
+        updated_at = NOW()
+    WHERE id = ${id}
+      AND status = 'cost-approval-required'
+    RETURNING id
+  `;
+  if (result.count === 0) {
+    throw new Error('Only a request paused for cost approval can receive planning-cost approval.');
+  }
+  const request = await getOrchestrationRequest(id);
+  if (!request) throw new Error('Cost approval was saved but could not be reloaded.');
   return request;
 }
 

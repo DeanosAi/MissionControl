@@ -27,6 +27,8 @@ export function WorkflowsClient() {
     setLoading(false);
   }, []);
 
+  // This existing integration loads its remote connection state on mount.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { checkConnection(); }, [checkConnection]);
 
   async function executeWorkflow(wf: Workflow) {

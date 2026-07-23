@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useRef, useState, useTransition } from 'react';
+import { useActionState, useEffect, useRef, useState, useTransition } from 'react';
 import type { JournalEntryRecord } from '@/lib/journal';
 import { createJournalAction, deleteJournalAction, type JournalFormState } from './actions';
 
@@ -12,10 +12,9 @@ export function JournalPanel({ initialEntries }: { initialEntries: JournalEntryR
   const formRef = useRef<HTMLFormElement | null>(null);
   const [showForm, setShowForm] = useState(false);
 
-  // Reset form on success
-  if (state.success && formRef.current) {
-    formRef.current.reset();
-  }
+  useEffect(() => {
+    if (state.success) formRef.current?.reset();
+  }, [state.success]);
 
   return (
     <section className="card page-memory-accent">

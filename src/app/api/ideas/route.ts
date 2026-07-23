@@ -1,5 +1,20 @@
 import { requireAdminSession } from '@/lib/auth/session';
-import { listIdeas, createIdea, searchIdeas, archiveIdea } from '@/lib/ideas';
+import {
+  archiveIdea,
+  createIdea,
+  listIdeas,
+  searchIdeas,
+  type IdeaStatus,
+} from '@/lib/ideas';
+
+const IDEA_STATUSES: IdeaStatus[] = [
+  'submitted',
+  'researching',
+  'researched',
+  'building',
+  'built',
+  'archived',
+];
 
 export async function GET(request: Request) {
   try { await requireAdminSession(); } catch { return Response.json({ error: 'Unauthorized' }, { status: 401 }); }
@@ -9,9 +24,10 @@ export async function GET(request: Request) {
   const status = searchParams.get('status');
 
   try {
+    const ideaStatus = IDEA_STATUSES.find((value) => value === status);
     const ideas = query
       ? await searchIdeas(query)
-      : await listIdeas(status as any || undefined);
+      : await listIdeas(ideaStatus);
     return Response.json(ideas);
   } catch (err) {
     return Response.json({ error: err instanceof Error ? err.message : 'Failed' }, { status: 500 });

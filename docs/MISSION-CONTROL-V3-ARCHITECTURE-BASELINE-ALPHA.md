@@ -38,3 +38,11 @@ The annotated Git tag for this foundation is:
 `mission-control-v3-architecture-baseline-alpha`
 
 Every later sprint must identify this baseline and preserve the approval-first, model-agnostic architecture.
+
+## Permanent Constitution
+
+Beginning with Sprint 1.5, every architecture decision and future sprint must also reference:
+
+`docs/MISSION-CONTROL-CONSTITUTION.md`
+
+The Constitution may be amended only through an explained, approved, versioned, and journaled architecture decision.

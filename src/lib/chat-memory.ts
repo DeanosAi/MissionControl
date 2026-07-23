@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { createJournalEntry, listJournalEntries, type JournalType } from '@/lib/journal';
+import { createJournalEntry, listJournalEntries } from '@/lib/journal';
 import { listMemoryNotes, upsertMemoryNote, deleteMemoryNote, getMemoryByKey } from '@/lib/memory';
 
 export type MemoryCommandType = 'add_journal' | 'show_journal' | 'remember' | 'show_memory' | 'forget';

@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import { requireAdminSession } from '@/lib/auth/session';
 import {
+  approveConversationPlanningCost,
   approveConversationProposal,
   reviseConversationProposal,
 } from '@/lib/conversational-bridge/service';
@@ -35,6 +36,20 @@ export async function approveProposalAction(id: string, externalToolsApproved = 
     return { request };
   } catch (error) {
     return { error: error instanceof Error ? error.message : 'Unable to approve the proposal.' };
+  }
+}
+
+export async function approvePlanningCostAction(id: string): Promise<ProposalActionResult> {
+  await requireAdminSession();
+  const parsedId = idSchema.safeParse(id);
+  if (!parsedId.success) return { error: 'Invalid proposal id.' };
+
+  try {
+    const request = await approveConversationPlanningCost(parsedId.data);
+    revalidateOrchestrationViews();
+    return { request };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : 'Unable to approve the planning cost.' };
   }
 }
 

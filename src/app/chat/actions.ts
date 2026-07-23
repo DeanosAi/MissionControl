@@ -16,6 +16,10 @@ import { isConversationalBuildRequest } from '@/lib/conversational-bridge/intent
 import { completeWithCapability } from '@/lib/conversational-bridge/model-router';
 import { createProposalFromConversation } from '@/lib/conversational-bridge/service';
 import type { OrchestrationRequestRecord } from '@/lib/conversational-bridge/types';
+import {
+  linkDecisionIntakeToOrchestration,
+  recordDecisionIntake,
+} from '@/lib/decision-engine/intake';
 import { getJournalContext } from '@/lib/journal';
 import { getMemoryContext } from '@/lib/memory';
 
@@ -37,12 +41,12 @@ function buildSystemPrompt(
   memoryContext: string,
 ) {
   return [
-    `You are Scot, Mission Control's conversational AI operating system. You help Dean turn requests into clear, approval-first work.`,
+    `You are Scot, Mission Control's conversational AI operating system. Every request enters the Decision Engine, and you help Dean turn outcomes into researched, compared, approval-first work.`,
     '',
     `This response is being produced by ${modelName} from ${provider}. Your assistant identity is Scot. If asked which model is running, answer with that model and provider exactly.`,
     '',
     'Be helpful, direct, practical, and concise. Mission Control has projects, ideas, tasks, AI builds, systems, automations, journal, and memory.',
-    'For a new product or significant change, explain that Mission Control prepares a proposal and UI preview before implementation. Never claim a build has started unless the stored orchestration state says it has moved beyond approval.',
+    'For a new product or significant change, explain that Mission Control compares multiple approaches, recommends one, prepares a proposal and UI preview, and waits for approval. Never claim a build has started unless the stored orchestration state says it has moved beyond approval.',
     '',
     'Existing operational commands include:',
     '- "create task: <title>" to add a manual task',
@@ -82,6 +86,12 @@ export async function sendChatMessageAction(_prev: ChatFormState, formData: Form
   const taskCommand = detectTaskIntent(userMessage);
   if (taskCommand) {
     try {
+      await recordDecisionIntake({
+        chatMessageId: storedUserMessage.id,
+        message: userMessage,
+        route: 'task-command',
+        requiresApproval: false,
+      });
       const result = await executeTaskCommand(taskCommand);
       const assistantMessage = await createChatMessage('assistant', `[Mission Control] ${result.response}`);
       if (result.mutated) {
@@ -102,6 +112,12 @@ export async function sendChatMessageAction(_prev: ChatFormState, formData: Form
   const memoryCommand = detectMemoryIntent(userMessage);
   if (memoryCommand) {
     try {
+      await recordDecisionIntake({
+        chatMessageId: storedUserMessage.id,
+        message: userMessage,
+        route: 'memory-command',
+        requiresApproval: false,
+      });
       const result = await executeMemoryCommand(memoryCommand);
       const assistantMessage = await createChatMessage('assistant', `[Mission Control] ${result.response}`);
       if (result.mutated) revalidatePath('/memory');
@@ -118,11 +134,20 @@ export async function sendChatMessageAction(_prev: ChatFormState, formData: Form
   // V3 Sprint 1: create a project, proposal, and UI preview, then stop.
   if (isConversationalBuildRequest(userMessage)) {
     try {
+      await recordDecisionIntake({
+        chatMessageId: storedUserMessage.id,
+        message: userMessage,
+        route: 'product-decision',
+        requiresApproval: true,
+      });
       const orchestration = await createProposalFromConversation(userMessage);
       await linkChatMessageToOrchestration(storedUserMessage.id, orchestration.projectId, orchestration.id);
+      await linkDecisionIntakeToOrchestration(storedUserMessage.id, orchestration.id);
       const assistantMessage = await createChatMessage(
         'assistant',
-        `[Mission Control] I created ${orchestration.projectTitle} in Projects and prepared a product proposal with a UI preview. Review it below; nothing will be built until you approve it.`,
+        orchestration.status === 'cost-approval-required'
+          ? `[Mission Control] I created ${orchestration.projectTitle} in Projects, then paused before paid analysis because the estimated planning cost needs your approval. Nothing has been spent or built.`
+          : `[Mission Control] I created ${orchestration.projectTitle} in Projects. The Decision Engine compared multiple approaches, recommended one, and prepared a proposal with a UI preview. Review it below; nothing will be built until you approve it.`,
         { projectId: orchestration.projectId, orchestrationRequestId: orchestration.id },
       );
       revalidatePath('/chat');
@@ -141,6 +166,12 @@ export async function sendChatMessageAction(_prev: ChatFormState, formData: Form
   }
 
   try {
+    await recordDecisionIntake({
+      chatMessageId: storedUserMessage.id,
+      message: userMessage,
+      route: 'conversation',
+      requiresApproval: false,
+    });
     const recentMessages = await listChatMessages();
     const conversationHistory = recentMessages
       .filter((message) => message.role !== 'system')
@@ -155,7 +186,7 @@ export async function sendChatMessageAction(_prev: ChatFormState, formData: Form
     const [taskContext, journalContext, memoryContext] = await Promise.all([
       buildTaskContext(),
       getJournalContext(),
-      getMemoryContext(),
+      getMemoryContext(userMessage),
     ]);
 
     const completion = await completeWithCapability('conversation', (selection) => {

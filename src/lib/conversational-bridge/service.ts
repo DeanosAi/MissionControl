@@ -1,26 +1,44 @@
 import 'server-only';
 
-import { createJournalEntry, getProjectJournalContext } from '@/lib/journal';
-import { getMemoryContext } from '@/lib/memory';
-import { createProject, getProjectById, listProjects, updateProjectStatus, type ProjectRecord } from '@/lib/projects';
-import { classifyProjectRequest, deriveRequestIntent } from '@/lib/conversational-bridge/intent';
-import { completeWithCapability } from '@/lib/conversational-bridge/model-router';
 import {
-  buildFallbackProposal,
-  buildProposalMessages,
   formatProposalForJournal,
-  parseBridgeModelOutput,
 } from '@/lib/conversational-bridge/proposal';
 import {
   approveRequest,
+  approveRequestPlanningCost,
   createOrchestrationRequest,
   getOrchestrationRequest,
   markRequestChangesRequested,
+  markRequestCostApprovalRequired,
   markRequestFailed,
   markRequestPlanning,
   saveRequestProposal,
 } from '@/lib/conversational-bridge/repository';
-import type { BridgeModelOutput, OrchestrationRequestRecord } from '@/lib/conversational-bridge/types';
+import type {
+  BridgeModelOutput,
+  OrchestrationRequestRecord,
+} from '@/lib/conversational-bridge/types';
+import {
+  recordDecisionOutcome,
+} from '@/lib/decision-engine/repository';
+import {
+  formatDecisionForJournal,
+} from '@/lib/decision-engine/output';
+import { runDecisionEngine } from '@/lib/decision-engine/service';
+import { createJournalEntry } from '@/lib/journal';
+import { rememberDecisionMemory } from '@/lib/memory-domains/decision-memory';
+import { rememberProjectMemory } from '@/lib/memory-domains/project-memory';
+import {
+  createProject,
+  getProjectById,
+  listProjects,
+  updateProjectStatus,
+  type ProjectRecord,
+} from '@/lib/projects';
+import {
+  classifyProjectRequest,
+  deriveRequestIntent,
+} from '@/lib/conversational-bridge/intent';
 
 async function writeBridgeJournal(input: {
   projectId: string;
@@ -34,7 +52,7 @@ async function writeBridgeJournal(input: {
     title: input.title,
     detail: input.detail,
     entryType: input.entryType ?? 'auto',
-    source: `conversational-bridge/${input.stage}`,
+    source: `decision-engine/${input.stage}`,
     projectId: input.projectId,
     orchestrationRequestId: input.requestId,
   });
@@ -65,68 +83,129 @@ async function resolveRequestProject(message: string): Promise<{
   return { project, classification, projectWasCreated: true };
 }
 
-async function generateProposal(input: {
+async function saveCompletedDecision(input: {
+  request: OrchestrationRequestRecord;
+  project: ProjectRecord;
+  generated: Extract<Awaited<ReturnType<typeof runDecisionEngine>>, { status: 'completed' }>;
+  incrementRevision?: boolean;
+}): Promise<OrchestrationRequestRecord> {
+  const saved = await saveRequestProposal({
+    id: input.request.id,
+    proposal: input.generated.output.proposal,
+    uiPreview: input.generated.output.uiPreview,
+    decisionAnalysis: input.generated.output.decision,
+    routingDecision: input.generated.routingDecision,
+    modelId: input.generated.model.id,
+    modelName: input.generated.model.name,
+    modelProvider: input.generated.model.provider,
+    incrementRevision: input.incrementRevision,
+  });
+
+  for (const note of input.generated.recoveryNotes) {
+    await writeBridgeJournal({
+      projectId: input.project.id,
+      requestId: input.request.id,
+      title: 'Decision Engine recovery',
+      detail: note,
+      stage: 'recovery',
+    });
+  }
+
+  const decisionDetail = formatDecisionForJournal(input.generated.output);
+  await rememberDecisionMemory({
+    key: `decision-${input.request.id}-revision-${saved.revision}`,
+    title: `Decision: ${input.generated.output.proposal.title}`,
+    content: decisionDetail,
+    summary: input.generated.output.decision.recommendation.rationale,
+    projectId: input.project.id,
+    orchestrationRequestId: input.request.id,
+    source: 'decision-engine/recommendation',
+    importance: 9,
+    metadata: {
+      revision: saved.revision,
+      selectedOptionId: input.generated.output.decision.recommendation.optionId,
+      confidence: input.generated.output.decision.recommendation.confidence,
+      alternatives: input.generated.output.decision.options.map((option) => option.id),
+      constitutionVersion: saved.constitutionVersion,
+    },
+  });
+
+  await rememberProjectMemory({
+    key: `proposal-${input.request.id}`,
+    title: `Current proposal: ${input.generated.output.proposal.title}`,
+    content: formatProposalForJournal(input.generated.output),
+    summary: input.generated.output.proposal.summary,
+    projectId: input.project.id,
+    orchestrationRequestId: input.request.id,
+    source: 'decision-engine/proposal',
+    importance: 8,
+    metadata: {
+      revision: saved.revision,
+      status: 'waiting-for-approval',
+    },
+  });
+
+  await writeBridgeJournal({
+    projectId: input.project.id,
+    requestId: input.request.id,
+    title: `Decision and proposal generated: ${input.generated.output.proposal.title}`,
+    detail: `${decisionDetail}\n\n${formatProposalForJournal(input.generated.output)}`,
+    entryType: 'decision',
+    stage: 'proposal',
+  });
+
+  return saved;
+}
+
+async function evaluateRequest(input: {
   request: OrchestrationRequestRecord;
   project: ProjectRecord;
   classificationRationale: string;
   revisionFeedback?: string;
   existingOutput?: BridgeModelOutput | null;
-}): Promise<{
-  output: BridgeModelOutput;
-  model: { id: string; name: string; provider: string };
-  recoveryNotes: string[];
-}> {
+  costApproved?: boolean;
+  incrementRevision?: boolean;
+}): Promise<OrchestrationRequestRecord> {
   const intent = deriveRequestIntent(input.request.originalRequest);
-  const [projectJournalContext, memoryContext] = await Promise.all([
-    getProjectJournalContext(input.project.id),
-    getMemoryContext(),
-  ]);
-
-  const promptInput = {
-    request: input.request.originalRequest,
-    intent,
+  const generated = await runDecisionEngine({
+    request: input.request,
     project: input.project,
+    intent,
     classification: input.request.classification,
     classificationRationale: input.classificationRationale,
-    projectJournalContext,
-    memoryContext,
     revisionFeedback: input.revisionFeedback,
-    existingProposal: input.existingOutput,
-  };
+    existingOutput: input.existingOutput,
+    costApproved: input.costApproved,
+  });
 
-  try {
-    const completion = await completeWithCapability(
-      'product-planning',
-      () => buildProposalMessages(promptInput),
-      5000,
-    );
-
-    try {
-      return {
-        output: parseBridgeModelOutput(completion.content),
-        model: completion.selection,
-        recoveryNotes: completion.recoveredAttempts.map(
-          (attempt) => `${attempt.modelName} failed, so Mission Control recovered with ${completion.selection.name}.`,
-        ),
-      };
-    } catch (parseError) {
-      return {
-        output: buildFallbackProposal({ request: input.request.originalRequest, intent, project: input.project }),
-        model: { id: 'mission-control-fallback', name: 'Mission Control fallback planner', provider: 'internal' },
-        recoveryNotes: [
-          `The selected planning model returned an invalid proposal shape. Mission Control recovered with its internal approval-first template. ${parseError instanceof Error ? parseError.message : ''}`.trim(),
-        ],
-      };
-    }
-  } catch (modelError) {
-    return {
-      output: buildFallbackProposal({ request: input.request.originalRequest, intent, project: input.project }),
-      model: { id: 'mission-control-fallback', name: 'Mission Control fallback planner', provider: 'internal' },
-      recoveryNotes: [
-        `No configured planning model completed the request. Mission Control recovered with its internal approval-first template. ${modelError instanceof Error ? modelError.message : ''}`.trim(),
-      ],
-    };
+  if (generated.status === 'cost-approval-required') {
+    const paused = await markRequestCostApprovalRequired({
+      id: input.request.id,
+      routingDecision: generated.routingDecision,
+      note: generated.message,
+    });
+    const alternatives = generated.routingDecision.alternatives
+      .map((candidate) => (
+        `${candidate.name}: ${candidate.estimatedCostUsd === null ? 'cost unknown' : `$${candidate.estimatedCostUsd.toFixed(4)}`}`
+      ))
+      .join('; ');
+    await writeBridgeJournal({
+      projectId: input.project.id,
+      requestId: input.request.id,
+      title: 'Decision Engine paused for planning-cost approval',
+      detail: `${generated.message}\nAlternatives considered: ${alternatives || 'No cheaper configured route is currently available.'}\nNo model call or implementation was started.`,
+      entryType: 'decision',
+      stage: 'cost-pause',
+    });
+    return paused;
   }
+
+  return saveCompletedDecision({
+    request: input.request,
+    project: input.project,
+    generated,
+    incrementRevision: input.incrementRevision,
+  });
 }
 
 export async function createProposalFromConversation(message: string): Promise<OrchestrationRequestRecord> {
@@ -143,7 +222,7 @@ export async function createProposalFromConversation(message: string): Promise<O
     await writeBridgeJournal({
       projectId: resolved.project.id,
       requestId: request.id,
-      title: 'Conversational request received',
+      title: 'Conversational request received by the Decision Engine',
       detail: `${message}\n\nIntent: ${intent.normalizedIntent}\nProject decision: ${resolved.classification.rationale}`,
       stage: 'request',
     });
@@ -152,55 +231,27 @@ export async function createProposalFromConversation(message: string): Promise<O
       await writeBridgeJournal({
         projectId: resolved.project.id,
         requestId: request.id,
-        title: resolved.classification.classification === 'child-project' ? 'Child project created' : 'Project created',
-        detail: `${resolved.project.title} was created automatically in the existing Projects module. No build task was created.`,
+        title: resolved.classification.classification === 'child-project'
+          ? 'Child project created'
+          : 'Project created',
+        detail: `${resolved.project.title} was created through the existing Projects module. No build task was created.`,
         stage: 'project',
       });
     }
 
     await markRequestPlanning(request.id);
-    const generated = await generateProposal({
+    return await evaluateRequest({
       request,
       project: resolved.project,
       classificationRationale: resolved.classification.rationale,
     });
-
-    const saved = await saveRequestProposal({
-      id: request.id,
-      proposal: generated.output.proposal,
-      uiPreview: generated.output.uiPreview,
-      modelId: generated.model.id,
-      modelName: generated.model.name,
-      modelProvider: generated.model.provider,
-    });
-
-    for (const note of generated.recoveryNotes) {
-      await writeBridgeJournal({
-        projectId: resolved.project.id,
-        requestId: request.id,
-        title: 'Planning model recovery',
-        detail: note,
-        stage: 'recovery',
-      });
-    }
-
-    await writeBridgeJournal({
-      projectId: resolved.project.id,
-      requestId: request.id,
-      title: `Proposal generated: ${generated.output.proposal.title}`,
-      detail: formatProposalForJournal(generated.output),
-      entryType: 'decision',
-      stage: 'proposal',
-    });
-
-    return saved;
   } catch (error) {
-    const reason = error instanceof Error ? error.message : 'Unknown orchestration failure';
+    const reason = error instanceof Error ? error.message : 'Unknown Decision Engine failure';
     await markRequestFailed(request.id, reason).catch(() => undefined);
     await writeBridgeJournal({
       projectId: resolved.project.id,
       requestId: request.id,
-      title: 'Proposal generation failed',
+      title: 'Decision Engine failed',
       detail: reason,
       stage: 'failure',
     }).catch(() => undefined);
@@ -208,7 +259,37 @@ export async function createProposalFromConversation(message: string): Promise<O
   }
 }
 
-export async function reviseConversationProposal(id: string, feedback: string): Promise<OrchestrationRequestRecord> {
+export async function approveConversationPlanningCost(
+  id: string,
+): Promise<OrchestrationRequestRecord> {
+  const paused = await getOrchestrationRequest(id);
+  if (!paused || paused.status !== 'cost-approval-required') {
+    throw new Error('This request is not waiting for planning-cost approval.');
+  }
+  const project = await getProjectById(paused.projectId);
+  if (!project) throw new Error('Project not found.');
+
+  const request = await approveRequestPlanningCost(id);
+  await writeBridgeJournal({
+    projectId: request.projectId,
+    requestId: request.id,
+    title: 'Planning cost approved',
+    detail: `The user explicitly approved the estimated planning cost of ${request.estimatedPlanningCostUsd === null ? 'an unconfigured amount' : `$${request.estimatedPlanningCostUsd.toFixed(4)}`}. This approval permits the Decision Engine analysis only; it does not approve a build.`,
+    entryType: 'decision',
+    stage: 'cost-approval',
+  });
+  return evaluateRequest({
+    request,
+    project,
+    classificationRationale: 'The existing project relationship remains unchanged after the cost pause.',
+    costApproved: true,
+  });
+}
+
+export async function reviseConversationProposal(
+  id: string,
+  feedback: string,
+): Promise<OrchestrationRequestRecord> {
   const request = await getOrchestrationRequest(id);
   if (!request || !request.proposal || !request.uiPreview) throw new Error('Proposal not found.');
   if (!['proposal-ready', 'changes-requested'].includes(request.status)) {
@@ -218,52 +299,35 @@ export async function reviseConversationProposal(id: string, feedback: string): 
   if (!project) throw new Error('Project not found.');
 
   await markRequestChangesRequested(id, feedback);
+  await recordDecisionOutcome({
+    orchestrationRequestId: request.id,
+    projectId: request.projectId,
+    outcomeType: 'changes-requested',
+    revision: request.revision,
+    selectedOptionId: request.decisionAnalysis?.recommendation.optionId,
+    notes: feedback,
+  });
   await writeBridgeJournal({
     projectId: project.id,
     requestId: id,
-    title: 'Proposal changes requested',
+    title: 'Decision and proposal changes requested',
     detail: feedback,
     entryType: 'decision',
     stage: 'feedback',
   });
 
-  const generated = await generateProposal({
+  return evaluateRequest({
     request,
     project,
     classificationRationale: `Revision ${request.revision + 1} keeps the existing project relationship.`,
     revisionFeedback: feedback,
-    existingOutput: { proposal: request.proposal, uiPreview: request.uiPreview },
-  });
-
-  const saved = await saveRequestProposal({
-    id,
-    proposal: generated.output.proposal,
-    uiPreview: generated.output.uiPreview,
-    modelId: generated.model.id,
-    modelName: generated.model.name,
-    modelProvider: generated.model.provider,
+    existingOutput: {
+      proposal: request.proposal,
+      uiPreview: request.uiPreview,
+    },
+    costApproved: Boolean(request.costApprovedAt),
     incrementRevision: true,
   });
-
-  for (const note of generated.recoveryNotes) {
-    await writeBridgeJournal({
-      projectId: project.id,
-      requestId: id,
-      title: 'Planning model recovery',
-      detail: note,
-      stage: 'recovery',
-    });
-  }
-
-  await writeBridgeJournal({
-    projectId: project.id,
-    requestId: id,
-    title: `Proposal revised: ${generated.output.proposal.title}`,
-    detail: formatProposalForJournal(generated.output),
-    entryType: 'decision',
-    stage: 'proposal-revision',
-  });
-  return saved;
 }
 
 export async function approveConversationProposal(
@@ -280,7 +344,7 @@ export async function approveConversationProposal(
   }
 
   const externalApprovalNote = externalTools.length > 0
-    ? `External tools explicitly approved: ${externalTools.map((choice) => choice.name).join(', ')}.`
+    ? `External tools explicitly approved for this proposal: ${externalTools.map((choice) => choice.name).join(', ')}.`
     : '';
   const decisionNote = [options.note?.trim(), externalApprovalNote].filter(Boolean).join(' ');
   const approved = await approveRequest(id, decisionNote || null);
@@ -288,11 +352,38 @@ export async function approveConversationProposal(
   if (project?.status === 'proposal') {
     await updateProjectStatus(approved.projectId, 'planning');
   }
+  await recordDecisionOutcome({
+    orchestrationRequestId: approved.id,
+    projectId: approved.projectId,
+    outcomeType: 'approved',
+    revision: approved.revision,
+    selectedOptionId: approved.decisionAnalysis?.recommendation.optionId,
+    notes: decisionNote || 'Approved without additional notes.',
+    metrics: {
+      modelId: approved.selectedModelId,
+      estimatedPlanningCostUsd: approved.estimatedPlanningCostUsd,
+    },
+  });
+  await rememberDecisionMemory({
+    key: `approval-${approved.id}-revision-${approved.revision}`,
+    title: `Approved: ${approved.proposal?.title ?? approved.projectTitle}`,
+    content: `${decisionNote || 'The user approved the recommended proposal without additional notes.'}\nNo implementation started. Sprint 1.5 ends at the approval boundary.`,
+    summary: 'User approval recorded.',
+    projectId: approved.projectId,
+    orchestrationRequestId: approved.id,
+    source: 'decision-engine/approval',
+    importance: 10,
+    metadata: {
+      revision: approved.revision,
+      selectedOptionId: approved.decisionAnalysis?.recommendation.optionId,
+      externalToolsApproved: externalTools.length > 0,
+    },
+  });
   await writeBridgeJournal({
     projectId: approved.projectId,
     requestId: approved.id,
     title: `Proposal approved: ${approved.proposal?.title ?? approved.projectTitle}`,
-    detail: `${decisionNote || 'The proposal was approved without additional notes.'}\n\nSprint 1 approval boundary reached. No implementation or task execution was started.`,
+    detail: `${decisionNote || 'The proposal was approved without additional notes.'}\n\nSprint 1.5 approval boundary reached. No implementation, autonomous coding, task execution, or deployment was started.`,
     entryType: 'decision',
     stage: 'approval',
   });
