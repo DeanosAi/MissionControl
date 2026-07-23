@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:intent": "node --no-warnings --experimental-strip-types scripts/test-conversational-intent.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

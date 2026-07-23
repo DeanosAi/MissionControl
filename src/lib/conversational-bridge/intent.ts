@@ -1,9 +1,11 @@
 import type { ProjectRecord } from '@/lib/projects';
 import type { ProjectClassification, RequestIntent } from '@/lib/conversational-bridge/types';
 
-const BUILD_REQUEST = /\b(build|create|make|design|develop|launch|prototype|turn\s+.+\s+into|help\s+me\s+(?:build|create|make))\b/i;
-const UPDATE_REQUEST = /\b(update|improve|change|extend|add|fix|redesign|refactor|continue|enhance)\b/i;
+const BUILD_REQUEST = /\b(build|create|make|design|develop|launch|prototype|plan|scope|specify|draft|propose|turn\s+.+\s+into|help\s+me\s+(?:build|create|make|plan))\b/i;
+const UPDATE_REQUEST = /\b(update|upgrade|improve|change|modify|customi[sz]e|extend|add|fix|redesign|refactor|continue|enhance)\b/i;
 const REQUEST_START = /^(?:please\s+)?(?:(?:can|could|would)\s+you\s+)?(?:help\s+me\s+)?(?:build|create|make|design|develop|launch|prototype|update|improve|change|extend|add|fix|redesign|refactor|continue|enhance)\b/i;
+const PLANNING_REQUEST_START = /^(?:please\s+)?(?:(?:can|could|would)\s+you\s+)?(?:help\s+me\s+)?(?:plan|scope|specify|draft|propose)(?:\s+(?:me|for\s+me))?\b/i;
+const PRODUCT_WORK = /\b(feature|upgrade|project|app|application|website|site|system|workflow|automation|product|module|integration|interface|ui|user\s+experience|dashboard|theme|navigation|page|screen|mission\s+control)\b/i;
 const STOP_WORDS = new Set([
   'a', 'an', 'and', 'app', 'application', 'build', 'create', 'for', 'help', 'i', 'in', 'make',
   'me', 'my', 'of', 'on', 'please', 'project', 'the', 'this', 'to', 'want', 'with',
@@ -15,6 +17,7 @@ export function isConversationalBuildRequest(message: string): boolean {
   if (/^(create|new|add)\s+(?:a\s+)?task\b/i.test(trimmed)) return false;
   if (/^(?:please\s+)?(?:(?:can|could|would)\s+you\s+)?add\s+up\b/i.test(trimmed)) return false;
   return REQUEST_START.test(trimmed)
+    || (PLANNING_REQUEST_START.test(trimmed) && PRODUCT_WORK.test(trimmed))
     || /^i\s+(?:want|need)\s+(?:an?|to\s+(?:build|create|make|design|improve|update))\b/i.test(trimmed)
     || /^turn\s+.+\s+into\b/i.test(trimmed);
 }
@@ -31,14 +34,13 @@ export function deriveRequestIntent(message: string): RequestIntent {
   const trimmed = message.trim().replace(/[.!?]+$/, '');
   let projectTitle = trimmed
     .replace(/^(?:please\s+)?(?:(?:can|could|would)\s+you\s+)?/i, '')
-    .replace(/^(?:help\s+me\s+)?(?:build|create|make|design|develop|launch|prototype|update|improve|change|extend|add|fix|redesign|refactor|continue|enhance)\s+(?:me\s+)?(?:an?\s+)?/i, '')
+    .replace(/^(?:help\s+me\s+)?(?:build|create|make|design|develop|launch|prototype|plan|scope|specify|draft|propose|update|upgrade|improve|change|modify|customi[sz]e|extend|add|fix|redesign|refactor|continue|enhance)\s+(?:(?:for\s+)?me\s+)?(?:an?\s+)?/i, '')
     .replace(/^i\s+want\s+(?:an?\s+|to\s+(?:build|create|make)\s+(?:an?\s+)?)?/i, '')
     .replace(/\s+(?:for me|please)$/i, '')
     .trim();
 
-  if (!projectTitle || projectTitle.length > 80) {
-    projectTitle = trimmed.slice(0, 80).trim();
-  }
+  if (!projectTitle) projectTitle = 'Untitled Project';
+  if (projectTitle.length > 80) projectTitle = projectTitle.slice(0, 80).trim();
 
   const category: RequestIntent['category'] = /\bautomat(e|ion)|schedule|recurring\b/i.test(trimmed)
     ? 'automate'
