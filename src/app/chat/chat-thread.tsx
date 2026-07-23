@@ -1,102 +1,126 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { ChatMessageRecord } from '@/lib/chat';
+import type { OrchestrationRequestRecord } from '@/lib/conversational-bridge/types';
 import { ChatForm } from './chat-form';
+import { ProposalCard } from './proposal-card';
 
-/** Render chat content with basic markdown-like formatting for task output */
 function ChatContent({ content }: { content: string }) {
-  // Split content into lines and render with basic formatting
   const lines = content.split('\n');
-
   return (
     <div className="chat-content">
-      {lines.map((line, i) => {
-        // Bold: **text**
+      {lines.map((line, index) => {
         const parts = line.split(/(\*\*[^*]+\*\*)/g);
-        const rendered = parts.map((part, j) => {
-          if (part.startsWith('**') && part.endsWith('**')) {
-            return <strong key={j}>{part.slice(2, -2)}</strong>;
-          }
-          return <span key={j}>{part}</span>;
-        });
+        const rendered = parts.map((part, partIndex) => part.startsWith('**') && part.endsWith('**')
+          ? <strong key={partIndex}>{part.slice(2, -2)}</strong>
+          : <span key={partIndex}>{part}</span>);
 
-        // Bullet lines
         if (line.trim().startsWith('•') || line.trim().startsWith('- ')) {
-          return <p key={i} className="chat-bullet">{rendered}</p>;
+          return <p key={index} className="chat-bullet">{rendered}</p>;
         }
-
-        // Empty lines become spacing
-        if (line.trim() === '') {
-          return <br key={i} />;
-        }
-
-        // Emoji-prefixed section headers (from task list formatting)
-        if (/^[📋🔄👁✅📦❌]/.test(line.trim())) {
-          return <p key={i} className="chat-section-header">{rendered}</p>;
-        }
-
-        return <p key={i}>{rendered}</p>;
+        if (!line.trim()) return <br key={index} />;
+        return <p key={index}>{rendered}</p>;
       })}
     </div>
   );
 }
 
-export function ChatThread({ initialMessages }: { initialMessages: ChatMessageRecord[] }) {
+export function ChatThread({
+  initialMessages,
+  initialRequests,
+}: {
+  initialMessages: ChatMessageRecord[];
+  initialRequests: OrchestrationRequestRecord[];
+}) {
   const [messages, setMessages] = useState(initialMessages);
+  const [requests, setRequests] = useState(initialRequests);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages]);
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [messages, requests]);
 
-  const visibleMessages = useMemo(() => messages, [messages]);
+  const requestMap = useMemo(() => new Map(requests.map((request) => [request.id, request])), [requests]);
+  const inlineRequestIds = useMemo(() => new Set(
+    messages
+      .filter((message) => message.role === 'assistant' && message.orchestrationRequestId)
+      .map((message) => message.orchestrationRequestId as string),
+  ), [messages]);
+
+  const updateRequest = useCallback((request: OrchestrationRequestRecord) => {
+    setRequests((current) => {
+      const exists = current.some((item) => item.id === request.id);
+      return exists
+        ? current.map((item) => item.id === request.id ? request : item)
+        : [request, ...current];
+    });
+  }, []);
 
   function appendUserMessage(content: string) {
-    setMessages((prev) => [
-      ...prev,
+    setMessages((current) => [
+      ...current,
       {
         id: `local-user-${Date.now()}`,
         role: 'user',
         content,
+        projectId: null,
+        orchestrationRequestId: null,
         createdAt: new Date().toISOString(),
       },
     ]);
   }
 
-  function appendAssistantMessage(message: ChatMessageRecord) {
-    setMessages((prev) => {
-      const withoutTrailingLocalUser = [...prev];
-      return [...withoutTrailingLocalUser, message];
-    });
-  }
+  const appendAssistantMessage = useCallback((
+    message: ChatMessageRecord,
+    orchestration?: OrchestrationRequestRecord,
+  ) => {
+    setMessages((current) => [...current, message]);
+    if (orchestration) updateRequest(orchestration);
+  }, [updateRequest]);
+
+  const unlinkedRequests = requests.filter((request) => !inlineRequestIds.has(request.id));
 
   return (
-    <section className="chat-shell card page-home-accent">
-      <div className="chat-shell-header task-board-section-header">
+    <section className="chat-shell card page-home-accent orchestration-shell">
+      <div className="chat-shell-header task-board-section-header orchestration-header">
         <div>
-          <div className="eyebrow">Chat</div>
-          <h2>Mission Control Chat</h2>
+          <div className="eyebrow">Conversational Bridge</div>
+          <h2>Describe the outcome. Mission Control handles the planning.</h2>
         </div>
-        <p>Chat with Scot about projects, ideas, content, and operations. Use task commands like &quot;list tasks&quot;, &quot;create task: title&quot;, or &quot;run task name&quot;.</p>
+        <p>Requests become structured projects, product proposals, and UI previews. You approve the direction before any implementation begins.</p>
       </div>
 
-      <div ref={scrollRef} className="chat-thread chat-scroll-region">
-        {visibleMessages.length === 0 ? (
-          <div className="chat-empty">
-            <p>No messages yet. Try &quot;list tasks&quot; to see your current tasks.</p>
+      <div ref={scrollRef} className="chat-thread chat-scroll-region orchestration-thread">
+        <div className="orchestration-welcome">
+          <span className="orchestration-orbit" aria-hidden="true">MC</span>
+          <div>
+            <strong>Start with the result you want.</strong>
+            <p>Try “Build me a grocery tracker.” Mission Control will work out the product shape, explain its decisions, and wait for you.</p>
           </div>
-        ) : (
-          visibleMessages.map((message) => (
-            <article key={message.id} className={`chat-bubble chat-${message.role}`}>
-              <span className="micro-copy chat-role-label">{message.role}</span>
-              <ChatContent content={message.content} />
-            </article>
-          ))
-        )}
+        </div>
+
+        {messages.map((message) => {
+          const request = message.role === 'assistant' && message.orchestrationRequestId
+            ? requestMap.get(message.orchestrationRequestId)
+            : undefined;
+          return (
+            <Fragment key={message.id}>
+              <article className={`chat-bubble chat-${message.role}`}>
+                <span className="micro-copy chat-role-label">
+                  {message.role === 'assistant' ? 'Mission Control' : message.role}
+                </span>
+                <ChatContent content={message.content} />
+              </article>
+              {request ? <ProposalCard request={request} onUpdated={updateRequest} /> : null}
+            </Fragment>
+          );
+        })}
+
+        {unlinkedRequests.map((request) => (
+          <ProposalCard key={request.id} request={request} onUpdated={updateRequest} />
+        ))}
       </div>
 
       <div className="chat-composer">

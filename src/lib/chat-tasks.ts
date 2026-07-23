@@ -55,13 +55,15 @@ export function detectTaskIntent(message: string): TaskCommand | null {
 
   // --- STATUS ---
   // "move task <ref> to <status>"
-  const statusMatch = lower.match(/^(?:move|set|change|update)\s+(?:task\s+)?["""]?(.+?)["""]?\s+(?:to|status)\s+(.+)/i);
+  const statusMatch = lower.match(/^(?:move|set|change|update)\s+task\s+["""]?(.+?)["""]?\s+(?:to|status)\s+(.+)/i);
   if (statusMatch) {
     return { type: 'status', taskRef: statusMatch[1].trim(), newStatus: statusMatch[2].trim() };
   }
 
   // --- SHOW (single task) ---
-  const showMatch = lower.match(/^(?:show|describe|details?\s+(?:of|for)?|what(?:'s| is)\s+(?:the\s+)?(?:status\s+of\s+)?(?:task\s+)?)["""]?(.+?)["""]?\s*\??$/i);
+  // Requiring "task" prevents general questions and "show memory" from
+  // being intercepted by the task command bridge.
+  const showMatch = lower.match(/^(?:(?:show|describe)\s+(?:the\s+)?task|details?\s+(?:of|for)\s+(?:the\s+)?task|what(?:'s| is)\s+(?:the\s+)?status\s+of\s+(?:the\s+)?task)\s+["""]?(.+?)["""]?\s*\??$/i);
   if (showMatch && showMatch[1].length > 2) {
     return { type: 'show', taskRef: showMatch[1].trim() };
   }

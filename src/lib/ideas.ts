@@ -43,14 +43,17 @@ interface IdeaRow {
   updated_at: Date;
 }
 
-/** Safely parse a JSONB value that might arrive as a string, object, or null */
-function safeJsonParse<T>(val: T | string | null, fallback: T): T {
-  if (val === null || val === undefined) return fallback;
-  if (typeof val === 'object') return val as T;
-  if (typeof val === 'string') {
-    try { return JSON.parse(val); } catch { return fallback; }
+/** Safely parse JSONB values, including records double-encoded by older builds. */
+function safeJsonParse<T>(value: unknown, fallback: T): T {
+  let current = value;
+  for (let attempt = 0; attempt < 2 && typeof current === 'string'; attempt += 1) {
+    try {
+      current = JSON.parse(current);
+    } catch {
+      return fallback;
+    }
   }
-  return fallback;
+  return (current as T | null | undefined) ?? fallback;
 }
 
 function mapRow(row: IdeaRow): IdeaRecord {
@@ -114,7 +117,7 @@ export async function appendConversation(id: string, message: IdeaConversationMe
   // The || operator concatenates two JSONB values.
   await sql`
     UPDATE mission_control.ideas
-    SET conversation_history = COALESCE(conversation_history, '[]'::jsonb) || ${sql.json([message] as any)},
+    SET conversation_history = COALESCE(conversation_history, '[]'::jsonb) || ${sql.json([message] as unknown as Parameters<typeof sql.json>[0])},
         updated_at = NOW()
     WHERE id = ${id}
   `;
@@ -127,7 +130,7 @@ export async function saveResearchData(id: string, data: IdeaResearchData): Prom
   // instead of a JSONB object, which is the root cause of the "malformed" bug.
   await sql`
     UPDATE mission_control.ideas
-    SET research_data = ${sql.json(data as any)}, status = 'researched', updated_at = NOW()
+    SET research_data = ${sql.json(data as unknown as Parameters<typeof sql.json>[0])}, status = 'researched', updated_at = NOW()
     WHERE id = ${id}
   `;
 }

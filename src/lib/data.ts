@@ -74,7 +74,7 @@ export const navItems: NavItem[] = [
   { key: 'ideas', label: 'Ideas', href: '/ideas' },
   { key: 'projects', label: 'Projects', href: '/projects' },
   { key: 'ai-builds', label: 'AI Builds', href: '/ai-builds' },
-  { key: 'chat', label: 'Chat', href: '/chat' },
+  { key: 'chat', label: 'Orchestrate', href: '/chat', badge: 'V3' },
   { key: 'usage', label: 'Usage & Limits', href: '/usage' },
   { key: 'team', label: 'Team', href: '/team' },
   { key: 'tools', label: 'Tools', href: '/tools' },

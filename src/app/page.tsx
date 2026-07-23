@@ -1,17 +1,24 @@
 import Image from 'next/image';
+import Link from 'next/link';
 import { DashboardShell } from '@/components/dashboard-shell';
 import { SectionHeader } from '@/components/section-header';
-import { aiBuilds, ideas, projects, recentActivity, suggestedIdeas } from '@/lib/data';
+import { recentActivity } from '@/lib/data';
 import { getUsageSnapshot } from '@/lib/usage';
 import { HomeUsagePanel } from './home-usage-panel';
+import { listOrchestrationRequests } from '@/lib/conversational-bridge/repository';
+import { listIdeas } from '@/lib/ideas';
 import { listJournalEntries } from '@/lib/journal';
+import { listProjects } from '@/lib/projects';
 import { listTasks } from '@/lib/tasks';
 
 export default async function HomePage() {
-  const [usage, journalEntries, tasks] = await Promise.all([
+  const [usage, journalEntries, tasks, projects, ideas, requests] = await Promise.all([
     getUsageSnapshot(),
     listJournalEntries(100).catch(() => []),
     listTasks().catch(() => []),
+    listProjects().catch(() => []),
+    listIdeas().catch(() => []),
+    listOrchestrationRequests(100).catch(() => []),
   ]);
 
   const activeTasks = tasks.filter(t => t.status !== 'done' && t.status !== 'archived');
@@ -29,12 +36,21 @@ export default async function HomePage() {
         />
       </section>
 
+      <section className="card home-orchestration-cta">
+        <div>
+          <div className="eyebrow">Mission Control V3</div>
+          <h2>Start with a conversation.</h2>
+          <p>Describe the outcome you want. Mission Control will create the project, think through the product, show a UI concept, and wait for approval.</p>
+        </div>
+        <Link href="/chat" className="login-button home-orchestration-button">Open Orchestrator →</Link>
+      </section>
+
       <HomeUsagePanel initialUsage={usage} />
 
       <section className="metric-grid metric-grid-spread">
         <div className="metric-card accent-yellow">
           <span>Ideas tracked</span>
-          <strong>{ideas.length + suggestedIdeas.length}</strong>
+          <strong>{ideas.length}</strong>
         </div>
         <div className="metric-card accent-blue">
           <span>Active tasks</span>
@@ -76,8 +92,8 @@ export default async function HomePage() {
           <div className="snapshot-grid">
             <div className="snapshot-card accent-blue">
               <span>Top project</span>
-              <strong>{projects[0]?.title}</strong>
-              <p>{projects[0]?.summary}</p>
+              <strong>{projects[0]?.title ?? 'No project yet'}</strong>
+              <p>{projects[0]?.summary ?? 'Start in the Orchestrator to create one.'}</p>
             </div>
             <div className="snapshot-card accent-blue-light">
               <span>Active tasks</span>
@@ -85,9 +101,9 @@ export default async function HomePage() {
               <p>{activeTasks.slice(0, 2).map(t => t.title).join(', ') || 'None right now'}</p>
             </div>
             <div className="snapshot-card accent-yellow">
-              <span>Milestones completed</span>
-              <strong>C through G</strong>
-              <p>Final polish (Milestone H) is the last step.</p>
+              <span>Conversational proposals</span>
+              <strong>{requests.length}</strong>
+              <p>{requests.filter((request) => request.status === 'proposal-ready').length} waiting for approval</p>
             </div>
           </div>
         </article>
