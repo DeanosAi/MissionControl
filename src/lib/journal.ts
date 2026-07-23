@@ -10,6 +10,8 @@ export interface JournalEntryRecord {
   detail: string;
   entryType: JournalType;
   source: string;
+  projectId: string | null;
+  orchestrationRequestId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -19,6 +21,8 @@ export interface CreateJournalInput {
   detail: string;
   entryType?: JournalType;
   source?: string;
+  projectId?: string | null;
+  orchestrationRequestId?: string | null;
 }
 
 function mapRow(row: {
@@ -27,6 +31,8 @@ function mapRow(row: {
   detail: string;
   entry_type: JournalType;
   source: string;
+  project_id: string | null;
+  orchestration_request_id: string | null;
   created_at: Date;
   updated_at: Date;
 }): JournalEntryRecord {
@@ -36,6 +42,8 @@ function mapRow(row: {
     detail: row.detail,
     entryType: row.entry_type,
     source: row.source,
+    projectId: row.project_id,
+    orchestrationRequestId: row.orchestration_request_id,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
@@ -47,6 +55,8 @@ type JournalRow = {
   detail: string;
   entry_type: JournalType;
   source: string;
+  project_id: string | null;
+  orchestration_request_id: string | null;
   created_at: Date;
   updated_at: Date;
 };
@@ -55,7 +65,7 @@ type JournalRow = {
 export async function listJournalEntries(limit = 50): Promise<JournalEntryRecord[]> {
   const sql = getDb();
   const rows = await sql<JournalRow[]>`
-    SELECT id, title, detail, entry_type, source, created_at, updated_at
+    SELECT id, title, detail, entry_type, source, project_id, orchestration_request_id, created_at, updated_at
     FROM mission_control.journal_entries
     ORDER BY created_at DESC
     LIMIT ${limit}
@@ -67,7 +77,7 @@ export async function listJournalEntries(limit = 50): Promise<JournalEntryRecord
 export async function getJournalEntry(id: string): Promise<JournalEntryRecord | null> {
   const sql = getDb();
   const [row] = await sql<JournalRow[]>`
-    SELECT id, title, detail, entry_type, source, created_at, updated_at
+    SELECT id, title, detail, entry_type, source, project_id, orchestration_request_id, created_at, updated_at
     FROM mission_control.journal_entries
     WHERE id = ${id}
     LIMIT 1
@@ -81,9 +91,14 @@ export async function createJournalEntry(input: CreateJournalInput): Promise<Jou
   const entryType = input.entryType ?? 'note';
   const source = input.source ?? 'manual';
   const [row] = await sql<JournalRow[]>`
-    INSERT INTO mission_control.journal_entries (title, detail, entry_type, source)
-    VALUES (${input.title}, ${input.detail}, ${entryType}, ${source})
-    RETURNING id, title, detail, entry_type, source, created_at, updated_at
+    INSERT INTO mission_control.journal_entries (
+      title, detail, entry_type, source, project_id, orchestration_request_id
+    )
+    VALUES (
+      ${input.title}, ${input.detail}, ${entryType}, ${source},
+      ${input.projectId ?? null}, ${input.orchestrationRequestId ?? null}
+    )
+    RETURNING id, title, detail, entry_type, source, project_id, orchestration_request_id, created_at, updated_at
   `;
   return mapRow(row);
 }
@@ -152,4 +167,21 @@ export async function getJournalContext(limit = 15): Promise<string> {
     ctx += `- [${date}] [${e.entryType}] ${e.title}\n`;
   }
   return ctx;
+}
+
+/** Get project-specific history for the Conversational Bridge. */
+export async function getProjectJournalContext(projectId: string, limit = 20): Promise<string> {
+  const sql = getDb();
+  const rows = await sql<JournalRow[]>`
+    SELECT id, title, detail, entry_type, source, project_id, orchestration_request_id, created_at, updated_at
+    FROM mission_control.journal_entries
+    WHERE project_id = ${projectId}
+    ORDER BY created_at DESC
+    LIMIT ${limit}
+  `;
+  if (rows.length === 0) return 'No project-specific journal entries yet.';
+
+  return rows
+    .map((row) => `[${row.created_at.toISOString().split('T')[0]}] ${row.title}: ${row.detail}`)
+    .join('\n');
 }

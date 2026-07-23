@@ -14,6 +14,7 @@ export interface TaskRecord {
   assignedAi: string | null;
   notes: string | null;
   recurring: string | null;
+  projectId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -26,6 +27,7 @@ export interface CreateTaskInput {
   assignedAi?: string | null;
   notes?: string | null;
   recurring?: string | null;
+  projectId?: string | null;
 }
 
 export interface UpdateTaskInput {
@@ -36,6 +38,7 @@ export interface UpdateTaskInput {
   assignedAi?: string | null;
   notes?: string | null;
   recurring?: string | null;
+  projectId?: string | null;
 }
 
 function mapTaskRow(row: {
@@ -47,6 +50,7 @@ function mapTaskRow(row: {
   assigned_ai: string | null;
   notes: string | null;
   recurring: string | null;
+  project_id: string | null;
   created_at: Date;
   updated_at: Date;
 }): TaskRecord {
@@ -59,6 +63,7 @@ function mapTaskRow(row: {
     assignedAi: row.assigned_ai,
     notes: row.notes,
     recurring: row.recurring,
+    projectId: row.project_id,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
@@ -75,10 +80,11 @@ export async function listTasks(): Promise<TaskRecord[]> {
     assigned_ai: string | null;
     notes: string | null;
     recurring: string | null;
+    project_id: string | null;
     created_at: Date;
     updated_at: Date;
   }[]>`
-    SELECT id, title, description, status, priority, assigned_ai, notes, recurring, created_at, updated_at
+    SELECT id, title, description, status, priority, assigned_ai, notes, recurring, project_id, created_at, updated_at
     FROM mission_control.tasks
     ORDER BY created_at ASC
   `;
@@ -97,12 +103,13 @@ export async function createTask(input: CreateTaskInput): Promise<TaskRecord> {
     assigned_ai: string | null;
     notes: string | null;
     recurring: string | null;
+    project_id: string | null;
     created_at: Date;
     updated_at: Date;
   }[]>`
-    INSERT INTO mission_control.tasks (title, description, status, priority, assigned_ai, notes, recurring)
-    VALUES (${input.title}, ${input.description}, ${input.status}, ${input.priority}, ${input.assignedAi ?? null}, ${input.notes ?? null}, ${input.recurring ?? null})
-    RETURNING id, title, description, status, priority, assigned_ai, notes, recurring, created_at, updated_at
+    INSERT INTO mission_control.tasks (title, description, status, priority, assigned_ai, notes, recurring, project_id)
+    VALUES (${input.title}, ${input.description}, ${input.status}, ${input.priority}, ${input.assignedAi ?? null}, ${input.notes ?? null}, ${input.recurring ?? null}, ${input.projectId ?? null})
+    RETURNING id, title, description, status, priority, assigned_ai, notes, recurring, project_id, created_at, updated_at
   `;
 
   return mapTaskRow(row);
@@ -119,10 +126,11 @@ export async function getTaskById(id: string): Promise<TaskRecord | null> {
     assigned_ai: string | null;
     notes: string | null;
     recurring: string | null;
+    project_id: string | null;
     created_at: Date;
     updated_at: Date;
   }[]>`
-    SELECT id, title, description, status, priority, assigned_ai, notes, recurring, created_at, updated_at
+    SELECT id, title, description, status, priority, assigned_ai, notes, recurring, project_id, created_at, updated_at
     FROM mission_control.tasks
     WHERE id = ${id}
     LIMIT 1
@@ -152,6 +160,7 @@ export async function updateTask(id: string, input: UpdateTaskInput): Promise<vo
       assigned_ai = ${input.assignedAi ?? null},
       notes = ${input.notes ?? null},
       recurring = ${input.recurring ?? null},
+      project_id = COALESCE(${input.projectId ?? null}, project_id),
       updated_at = NOW()
     WHERE id = ${id}
   `;

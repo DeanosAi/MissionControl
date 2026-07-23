@@ -1,9 +1,9 @@
 'use client';
 
-import { useActionState, useEffect, useRef, useState } from 'react';
+import { useActionState, useState } from 'react';
 
-import { AI_MODELS } from '@/lib/ai/models';
 import type { ChatMessageRecord } from '@/lib/chat';
+import type { OrchestrationRequestRecord } from '@/lib/conversational-bridge/types';
 import { sendChatMessageAction, type ChatFormState } from './actions';
 
 const initialState: ChatFormState = {};
@@ -13,86 +13,46 @@ export function ChatForm({
   onAssistantMessage,
 }: {
   onUserMessage: (content: string) => void;
-  onAssistantMessage: (message: ChatMessageRecord) => void;
+  onAssistantMessage: (message: ChatMessageRecord, orchestration?: OrchestrationRequestRecord) => void;
 }) {
-  const [state, formAction, pending] = useActionState(sendChatMessageAction, initialState);
-  const lastMessageIdRef = useRef<string | null>(null);
-  const formRef = useRef<HTMLFormElement | null>(null);
-  const [selectedModel, setSelectedModel] = useState('gpt-5.4');
-  const [gptAvailable, setGptAvailable] = useState<boolean | null>(null);
-
-  // Check GPT OAuth availability on mount and periodically
-  useEffect(() => {
-    let cancelled = false;
-    async function checkGpt() {
-      try {
-        const res = await fetch('/api/gpt-status', { cache: 'no-store' });
-        if (res.ok) {
-          const data = await res.json();
-          if (!cancelled) setGptAvailable(data.available);
-        }
-      } catch {
-        if (!cancelled) setGptAvailable(false);
-      }
-    }
-    checkGpt();
-    const interval = setInterval(checkGpt, 20000); // check every 20s
-    return () => { cancelled = true; clearInterval(interval); };
-  }, []);
-
-  useEffect(() => {
-    if (state.message && state.message.id !== lastMessageIdRef.current) {
-      lastMessageIdRef.current = state.message.id;
-      onAssistantMessage(state.message);
-      formRef.current?.reset();
-    }
-  }, [state, onAssistantMessage]);
-
-  const selectedModelInfo = AI_MODELS.find((m) => m.id === selectedModel);
-  const isGptSelected = selectedModelInfo?.requiresOAuth === true;
-
-  async function submitAction(formData: FormData) {
-    const message = String(formData.get('message') ?? '').trim();
-    if (message) {
-      onUserMessage(message);
-    }
-    return formAction(formData);
-  }
-
-  const providerLabel = selectedModelInfo?.provider === 'openai' ? 'OpenAI (OAuth)'
-    : selectedModelInfo?.provider === 'anthropic' ? 'Anthropic'
-    : 'Moonshot';
+  const [message, setMessage] = useState('');
+  const [state, formAction, pending] = useActionState(async (previousState: ChatFormState, formData: FormData) => {
+    const submittedMessage = String(formData.get('message') ?? '').trim();
+    if (submittedMessage) onUserMessage(submittedMessage);
+    const result = await sendChatMessageAction(previousState, formData);
+    if (result.message) onAssistantMessage(result.message, result.orchestration);
+    setMessage('');
+    return result;
+  }, initialState);
 
   return (
-    <form ref={formRef} action={submitAction} className="chat-form">
-      <label className="login-field">
-        <span>Model</span>
-        <select name="model" value={selectedModel} onChange={(e) => setSelectedModel(e.target.value)}>
-          {AI_MODELS.map((model) => (
-            <option key={model.id} value={model.id}>
-              {model.name} - {model.description}
-            </option>
-          ))}
-        </select>
-      </label>
-      <div className="chat-model-status">
-        <p className="micro-copy">
-          Provider: {providerLabel} · Active model: {selectedModelInfo?.name}
-        </p>
-        {isGptSelected && gptAvailable !== null && (
-          <span className={`gpt-status-badge ${gptAvailable ? 'gpt-online' : 'gpt-offline'}`}>
-            {gptAvailable ? '● GPT Online' : '○ GPT Offline — will use fallback'}
-          </span>
-        )}
+    <form action={formAction} className="chat-form orchestration-composer-form">
+      <div className="orchestration-mode-row">
+        <div>
+          <span className="orchestration-live-dot" aria-hidden="true" />
+          <strong>Mission Control is orchestrating</strong>
+        </div>
+        <span className="micro-copy">Models are selected automatically</span>
       </div>
+
       <label className="login-field task-field-full">
-        <span>Message</span>
-        <textarea name="message" rows={4} placeholder="Message Scot from inside Mission Control…" required />
+        <span>What would you like Mission Control to do?</span>
+        <textarea
+          name="message"
+          rows={3}
+          value={message}
+          onChange={(event) => setMessage(event.target.value)}
+          placeholder="Build me a grocery tracker…"
+          required
+        />
       </label>
-      {state.error ? <p className="login-error">{state.error}</p> : null}
-      <button type="submit" className="login-button task-submit" disabled={pending}>
-        {pending ? 'Sending…' : 'Send'}
-      </button>
+      {state.error ? <p className="login-error" role="alert">{state.error}</p> : null}
+      <div className="orchestration-submit-row">
+        <p>New build requests become a project and proposal. Nothing is implemented before approval.</p>
+        <button type="submit" className="login-button task-submit" disabled={pending || !message.trim()}>
+          {pending ? 'Thinking through it…' : 'Send to Mission Control'}
+        </button>
+      </div>
     </form>
   );
 }

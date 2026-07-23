@@ -1,7 +1,10 @@
+import Link from 'next/link';
+
 import { DashboardShell } from '@/components/dashboard-shell';
 import { SectionHeader } from '@/components/section-header';
+import { listOrchestrationRequests } from '@/lib/conversational-bridge/repository';
+import { listProjects } from '@/lib/projects';
 import { listTasks } from '@/lib/tasks';
-import { projects } from '@/lib/data';
 
 const columns = [
   { key: 'backlog', label: 'To Do', className: 'kanban-todo' },
@@ -11,45 +14,54 @@ const columns = [
 ] as const;
 
 export default async function ProjectsPage() {
-  const tasks = await listTasks().catch(() => []);
+  const [projects, tasks, orchestrationRequests] = await Promise.all([
+    listProjects(),
+    listTasks(),
+    listOrchestrationRequests(100),
+  ]);
 
-  const grouped = columns.map(col => ({
-    ...col,
-    tasks: tasks.filter(t => t.status === col.key),
+  const grouped = columns.map((column) => ({
+    ...column,
+    tasks: tasks.filter((task) => task.status === column.key),
   }));
-
-  const activeTasks = tasks.filter(t => t.status !== 'done' && t.status !== 'archived');
-  const completedTasks = tasks.filter(t => t.status === 'done');
+  const latestRequestByProject = new Map<string, (typeof orchestrationRequests)[number]>();
+  for (const request of orchestrationRequests) {
+    if (!latestRequestByProject.has(request.projectId)) {
+      latestRequestByProject.set(request.projectId, request);
+    }
+  }
 
   return (
     <DashboardShell
       active="projects"
       title="Projects"
-      subtitle="At-a-glance view of all tasks across the board. Open Current Tasks to manage and execute."
+      subtitle="Every conversational request lands in the existing project system, with child projects keeping the work modular."
     >
-      {/* Stats row */}
       <section className="metric-grid metric-grid-spread">
-        <div className="metric-card accent-yellow">
-          <span>To Do</span>
-          <strong>{grouped[0].tasks.length}</strong>
-        </div>
-        <div className="metric-card accent-blue">
-          <span>In Progress</span>
-          <strong>{grouped[1].tasks.length}</strong>
-        </div>
-        <div className="metric-card accent-orange">
-          <span>Review</span>
-          <strong>{grouped[2].tasks.length}</strong>
-        </div>
-        <div className="metric-card accent-blue-light">
-          <span>Done</span>
-          <strong>{grouped[3].tasks.length}</strong>
-        </div>
+        {grouped.map((column) => (
+          <div
+            className={`metric-card ${
+              column.key === 'backlog'
+                ? 'accent-yellow'
+                : column.key === 'in-progress'
+                  ? 'accent-blue'
+                  : column.key === 'review'
+                    ? 'accent-orange'
+                    : 'accent-blue-light'
+            }`}
+            key={column.key}
+          >
+            <span>{column.label}</span>
+            <strong>{column.tasks.length}</strong>
+          </div>
+        ))}
       </section>
 
-      {/* Kanban mirror — read-only view of real DB tasks */}
       <section className="card">
-        <SectionHeader title="Task Board" subtitle="Live mirror of Current Tasks. Click a task to manage it in Current Tasks." />
+        <SectionHeader
+          title="Task Board"
+          subtitle="A live mirror of Current Tasks. Proposal-only projects do not create tasks until a later approved sprint."
+        />
         <div className="kanban-grid" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
           {grouped.map((column) => (
             <div key={column.key} className={`kanban-column ${column.className}`}>
@@ -64,52 +76,63 @@ export default async function ProjectsPage() {
                   </div>
                 ) : (
                   column.tasks.map((task) => (
-                    <div key={task.id} className="kanban-card">
+                    <Link key={task.id} href="/projects/current-tasks" className="kanban-card project-task-preview">
                       <div className="pill-row left">
                         <span className="pill">{task.priority}</span>
-                        {task.assignedAi && <span className="pill ghost">{task.assignedAi}</span>}
+                        {task.assignedAi ? <span className="pill ghost">{task.assignedAi}</span> : null}
                       </div>
                       <h4>{task.title}</h4>
-                      <p className="micro-copy" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                        {task.description}
-                      </p>
-                      {task.notes && task.notes.includes('Created from Ideas') && (
-                        <span className="pill ghost" style={{ marginTop: '0.35rem', fontSize: '0.68rem' }}>from Ideas</span>
-                      )}
-                    </div>
+                      <p className="micro-copy project-task-description">{task.description}</p>
+                      {task.notes?.includes('Created from Ideas') ? (
+                        <span className="pill ghost project-task-origin">from Ideas</span>
+                      ) : null}
+                    </Link>
                   ))
                 )}
               </div>
             </div>
           ))}
         </div>
-      </section>
-
-      {/* Link to Current Tasks for full management */}
-      <section className="card">
-        <div className="list-row project-inline-link">
-          <div>
-            <h3>Manage Tasks</h3>
-            <p>Open Current Tasks to create, edit, drag, execute, and manage tasks with full controls.</p>
-          </div>
-          <a href="/projects/current-tasks" className="logout-button project-link-button">Open Current Tasks →</a>
+        <div className="project-board-footer">
+          <p>Use Current Tasks for editing, drag-and-drop, assignment, and manual execution.</p>
+          <Link href="/projects/current-tasks" className="logout-button project-link-button">
+            Open Current Tasks →
+          </Link>
         </div>
       </section>
 
-      {/* Project overview */}
-      <section className="card">
-        <SectionHeader title="Project Overview" subtitle="Broader projects that encompass the work above." />
-        <div className="stack">
-          {projects.map((project) => (
-            <div key={project.id} className="list-row">
-              <div>
-                <h3>{project.title}</h3>
+      <section className="card project-overview-card">
+        <SectionHeader title="Project Overview" subtitle="Top-level and child projects share one durable source of truth." />
+        <div className="project-record-grid">
+          {projects.map((project) => {
+            const request = latestRequestByProject.get(project.id);
+            return (
+              <article key={project.id} className="project-record">
+                <div className="project-record-topline">
+                  <div>
+                    {project.parentProjectTitle ? (
+                      <span className="micro-copy">Child of {project.parentProjectTitle}</span>
+                    ) : (
+                      <span className="micro-copy">Top-level project</span>
+                    )}
+                    <h3>{project.title}</h3>
+                  </div>
+                  <span className="pill highlight">{project.status}</span>
+                </div>
                 <p>{project.summary}</p>
-                <span className="micro-copy">Owner: {project.owner}</span>
-              </div>
-              <span className="pill highlight">{project.status}</span>
-            </div>
-          ))}
+                <div className="project-record-meta">
+                  <span>Owner: {project.owner}</span>
+                  {request ? (
+                    <Link href={`/chat#proposal-${request.id}`} className="project-proposal-link">
+                      Proposal {request.revision} · {request.status.replace('-', ' ')}
+                    </Link>
+                  ) : (
+                    <span>No conversational proposal</span>
+                  )}
+                </div>
+              </article>
+            );
+          })}
         </div>
       </section>
     </DashboardShell>

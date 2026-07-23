@@ -6,6 +6,8 @@ export interface ChatMessageRecord {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
+  projectId: string | null;
+  orchestrationRequestId: string | null;
   createdAt: string;
 }
 
@@ -13,12 +15,16 @@ function mapMessage(row: {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
+  project_id: string | null;
+  orchestration_request_id: string | null;
   created_at: Date;
 }): ChatMessageRecord {
   return {
     id: row.id,
     role: row.role,
     content: row.content,
+    projectId: row.project_id,
+    orchestrationRequestId: row.orchestration_request_id,
     createdAt: row.created_at.toISOString(),
   };
 }
@@ -29,9 +35,11 @@ export async function listChatMessages(): Promise<ChatMessageRecord[]> {
     id: string;
     role: 'user' | 'assistant' | 'system';
     content: string;
+    project_id: string | null;
+    orchestration_request_id: string | null;
     created_at: Date;
   }[]>`
-    SELECT id, role, content, created_at
+    SELECT id, role, content, project_id, orchestration_request_id, created_at
     FROM mission_control.chat_messages
     ORDER BY created_at ASC
     LIMIT 100
@@ -40,20 +48,39 @@ export async function listChatMessages(): Promise<ChatMessageRecord[]> {
   return rows.map(mapMessage);
 }
 
-export async function createChatMessage(role: 'user' | 'assistant' | 'system', content: string): Promise<ChatMessageRecord> {
+export async function createChatMessage(
+  role: 'user' | 'assistant' | 'system',
+  content: string,
+  context: { projectId?: string | null; orchestrationRequestId?: string | null } = {},
+): Promise<ChatMessageRecord> {
   const sql = getDb();
   const [row] = await sql<{
     id: string;
     role: 'user' | 'assistant' | 'system';
     content: string;
+    project_id: string | null;
+    orchestration_request_id: string | null;
     created_at: Date;
   }[]>`
-    INSERT INTO mission_control.chat_messages (role, content)
-    VALUES (${role}, ${content})
-    RETURNING id, role, content, created_at
+    INSERT INTO mission_control.chat_messages (role, content, project_id, orchestration_request_id)
+    VALUES (${role}, ${content}, ${context.projectId ?? null}, ${context.orchestrationRequestId ?? null})
+    RETURNING id, role, content, project_id, orchestration_request_id, created_at
   `;
 
   return mapMessage(row);
+}
+
+export async function linkChatMessageToOrchestration(
+  messageId: string,
+  projectId: string,
+  orchestrationRequestId: string,
+): Promise<void> {
+  const sql = getDb();
+  await sql`
+    UPDATE mission_control.chat_messages
+    SET project_id = ${projectId}, orchestration_request_id = ${orchestrationRequestId}
+    WHERE id = ${messageId}
+  `;
 }
 
 export async function ensureInitialSystemMessage() {
@@ -72,6 +99,6 @@ export async function ensureInitialSystemMessage() {
 
   await createChatMessage(
     'system',
-    'Mission Control Chat v1 is active. GPT/Codex integration is the next step; until that is wired, this thread acts as the in-app conversation scaffold and stores message history.',
+    'Mission Control V3 Conversational Bridge is active. Describe what you want to build or improve and Mission Control will create a project, proposal, and UI concept for approval before any implementation begins.',
   );
 }
