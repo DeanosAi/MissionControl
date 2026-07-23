@@ -39,10 +39,16 @@ export async function listChatMessages(): Promise<ChatMessageRecord[]> {
     orchestration_request_id: string | null;
     created_at: Date;
   }[]>`
+    -- Keep the newest 100 messages while returning them in conversation order.
+    -- Selecting ASC with LIMIT directly returns stale history once the thread grows.
     SELECT id, role, content, project_id, orchestration_request_id, created_at
-    FROM mission_control.chat_messages
+    FROM (
+      SELECT id, role, content, project_id, orchestration_request_id, created_at
+      FROM mission_control.chat_messages
+      ORDER BY created_at DESC
+      LIMIT 100
+    ) AS recent_messages
     ORDER BY created_at ASC
-    LIMIT 100
   `;
 
   return rows.map(mapMessage);
