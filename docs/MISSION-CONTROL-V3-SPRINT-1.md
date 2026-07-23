@@ -66,7 +66,9 @@ Apply the migration before starting the V3 application image because the Chat, P
 
 ## Deployment safety
 
-Before production deployment, reconcile the repository with the latest VPS-only V2 changes documented in `MISSION-CONTROL-WORK-SUMMARY.md`. The current repository history does not contain every source patch described as deployed on April 13-14, 2026.
+The VPS-only V2 source was recovered and synchronized through commit `1d71fd2`. Sprint 1 was then reconciled on top of that recovered source rather than the older GitHub snapshot. The reconciliation process is documented in `docs/LIVE-SOURCE-SYNC-2026-07-23.md`.
+
+Production deployment still requires a source and database backup, migration `004_conversational_bridge.sql`, a clean application rebuild, and an authenticated browser smoke test.
 
 ## Verification
 
