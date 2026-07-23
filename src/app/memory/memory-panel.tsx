@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useRef, useState, useTransition } from 'react';
+import { useActionState, useEffect, useRef, useState, useTransition } from 'react';
 import type { MemoryNoteRecord } from '@/lib/memory';
 import { deleteMemoryAction, toggleMemoryPinAction, upsertMemoryAction, type MemoryFormState } from './actions';
 
@@ -12,9 +12,9 @@ export function MemoryPanel({ initialNotes }: { initialNotes: MemoryNoteRecord[]
   const formRef = useRef<HTMLFormElement | null>(null);
   const [showForm, setShowForm] = useState(false);
 
-  if (state.success && formRef.current) {
-    formRef.current.reset();
-  }
+  useEffect(() => {
+    if (state.success) formRef.current?.reset();
+  }, [state.success]);
 
   return (
     <section className="card page-memory-accent">

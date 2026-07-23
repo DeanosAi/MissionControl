@@ -86,6 +86,8 @@ export function IdeasClient() {
     setLoading(false);
   }, [search, statusFilter]);
 
+  // The API is the source of truth for this existing client-managed screen.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchIdeas(); }, [fetchIdeas]);
 
   async function handleCreate() {
@@ -165,6 +167,8 @@ function IdeaCard({ idea, expanded, onToggle, onDelete, onRefresh }: {
   const [buildResult, setBuildResult] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
+  // Keep the expanded card in sync when its server-backed idea record changes.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setLocalConvo(idea.conversationHistory || []); }, [idea.conversationHistory]);
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [localConvo]);
 

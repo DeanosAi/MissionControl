@@ -2,7 +2,7 @@ import 'server-only';
 
 import { getDb } from '@/lib/db';
 import { generateChatCompletion as generateAnthropicCompletion } from '@/lib/ai/anthropic';
-import { getModel, type AIModel } from '@/lib/ai/models';
+import { getModel } from '@/lib/ai/models';
 import { generateChatCompletion as generateMoonshotCompletion } from '@/lib/ai/moonshot';
 import { generateChatCompletion as generateOpenAICompletion } from '@/lib/ai/openai';
 import { isGptAvailable } from '@/lib/ai/gpt-oauth-status';

@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 
 interface Automation {
   id: string; title: string; description: string | null; cronSchedule: string;
-  modelId: string; status: string; lastRun: string | null; nextRun: string | null; createdAt: string;
+  modelId: string; automationType: 'task' | 'research'; capability: string; timezone: string;
+  status: string; lastRun: string | null; nextRun: string | null; createdAt: string;
 }
 
 interface AutomationRun {
@@ -25,18 +26,18 @@ const PRESETS = [
 ];
 
 const TEMPLATES = [
-  { title: 'Weekly Social Media Trends', description: 'Research latest TikTok and Instagram trends, rank them, save summary.', cron: '0 9 * * 0', model: 'kimi-k2.5' },
-  { title: 'Daily Instagram View Count', description: 'Check view count for Instagram page, log the data.', cron: '0 21 * * *', model: 'kimi-k2.5' },
-  { title: 'Morning Schedule & Tasks', description: 'Pull current tasks and create a morning summary.', cron: '0 6 * * *', model: 'kimi-k2.5' },
+  { title: 'Weekly Social Media Trends', description: 'Research latest TikTok and Instagram trends, rank them, save summary.', cron: '0 9 * * 0', capability: 'research' },
+  { title: 'Daily Instagram View Count', description: 'Check view count for Instagram page, log the data.', cron: '0 21 * * *', capability: 'research' },
+  { title: 'Morning Schedule & Tasks', description: 'Pull current tasks and create a morning summary.', cron: '0 6 * * *', capability: 'reasoning' },
 ];
 
 export function AutomationsClient({ initialAutomations }: Props) {
   const [automations, setAutomations] = useState<Automation[]>(initialAutomations);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [cronSchedule, setCronSchedule] = useState('0 9 * * *');
-  const [modelId, setModelId] = useState('kimi-k2.5');
+  const [capability, setCapability] = useState('reasoning');
   const [preview, setPreview] = useState<{ description: string; nextRuns: string[] } | null>(null);
   const [creating, setCreating] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -48,11 +49,9 @@ export function AutomationsClient({ initialAutomations }: Props) {
     setLoading(false);
   }, []);
 
-  useEffect(() => { fetchAutomations(); }, [fetchAutomations]);
-
   // Preview cron schedule
   useEffect(() => {
-    if (!cronSchedule.trim()) { setPreview(null); return; }
+    if (!cronSchedule.trim()) return;
     const timer = setTimeout(async () => {
       const res = await fetch(`/api/automations?preview=${encodeURIComponent(cronSchedule)}`);
       if (res.ok) setPreview(await res.json());
@@ -66,7 +65,7 @@ export function AutomationsClient({ initialAutomations }: Props) {
     await fetch('/api/automations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'create', title, description, cronSchedule, modelId }),
+      body: JSON.stringify({ action: 'create', title, description, cronSchedule, capability }),
     });
     setTitle(''); setDescription(''); setCreating(false); setShowForm(false);
     fetchAutomations();
@@ -82,7 +81,7 @@ export function AutomationsClient({ initialAutomations }: Props) {
   }
 
   function applyTemplate(t: typeof TEMPLATES[0]) {
-    setTitle(t.title); setDescription(t.description); setCronSchedule(t.cron); setModelId(t.model); setShowForm(true);
+    setTitle(t.title); setDescription(t.description); setCronSchedule(t.cron); setCapability(t.capability); setShowForm(true);
   }
 
   return (
@@ -115,15 +114,17 @@ export function AutomationsClient({ initialAutomations }: Props) {
           <>
             <div className="task-form-grid">
               <label className="login-field"><span>Title</span><input type="text" value={title} onChange={e => setTitle(e.target.value)} /></label>
-              <label className="login-field"><span>Model</span>
-                <select value={modelId} onChange={e => setModelId(e.target.value)}>
-                  <option value="kimi-k2.5">Kimi K2.5</option>
-                  <option value="claude-sonnet-4-5">Claude Sonnet 4.5</option>
-                  <option value="claude-opus-4-6">Claude Opus 4.6</option>
+              <label className="login-field"><span>Capability</span>
+                <select value={capability} onChange={e => setCapability(e.target.value)}>
+                  <option value="reasoning">Reasoning</option>
+                  <option value="planning">Planning</option>
+                  <option value="research">Research</option>
+                  <option value="documentation">Documentation</option>
+                  <option value="testing">Testing</option>
                 </select>
               </label>
               <label className="login-field task-field-full"><span>Description</span><textarea rows={2} value={description} onChange={e => setDescription(e.target.value)} /></label>
-              <label className="login-field"><span>Cron Schedule</span><input type="text" value={cronSchedule} onChange={e => setCronSchedule(e.target.value)} placeholder="0 9 * * *" /></label>
+              <label className="login-field"><span>Cron Schedule</span><input type="text" value={cronSchedule} onChange={e => { setPreview(null); setCronSchedule(e.target.value); }} placeholder="0 9 * * *" /></label>
               <label className="login-field"><span>Preset</span>
                 <select onChange={e => { if (e.target.value) setCronSchedule(e.target.value); }}>
                   <option value="">Custom</option>
@@ -178,7 +179,8 @@ function AutomationRow({ automation: a, expanded, onToggle, onAction }: {
         <div className="pill-row left">
           <span className={`pill ${a.status === 'active' ? '' : 'ghost'}`}>{a.status}</span>
           <span className="pill ghost">{a.cronSchedule}</span>
-          <span className="pill ghost">{a.modelId}</span>
+          <span className="pill ghost">{a.capability}</span>
+          <span className="pill ghost">{a.automationType}</span>
         </div>
         <span style={{ fontSize: '1.2rem' }}>{expanded ? '▾' : '▸'}</span>
       </div>

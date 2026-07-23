@@ -30,9 +30,15 @@ export async function POST(request: Request) {
   const { action } = body;
 
   if (action === 'create') {
-    const { title, description, cronSchedule, modelId } = body;
+    const { title, description, cronSchedule, capability, automationType } = body;
     if (!title || !cronSchedule) return Response.json({ error: 'title and cronSchedule required' }, { status: 400 });
-    const automation = await createAutomation({ title, description, cronSchedule, modelId: modelId || 'kimi-k2.5' });
+    const automation = await createAutomation({
+      title,
+      description,
+      cronSchedule,
+      capability: capability || 'reasoning',
+      automationType: automationType === 'research' ? 'research' : 'task',
+    });
     return Response.json(automation);
   }
 

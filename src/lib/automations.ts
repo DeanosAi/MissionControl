@@ -1,8 +1,14 @@
 import 'server-only';
 
 import { getDb } from '@/lib/db';
-import { createTask, type TaskRecord } from '@/lib/tasks';
+import {
+  capabilitySchema,
+  rankCapabilityCandidates,
+} from '@/lib/capability-registry';
+import { createTask } from '@/lib/tasks';
 import { executeTask } from '@/lib/task-execution';
+import { runWeeklyResearchEngine } from '@/lib/research-engine/service';
+import { createJournalEntry } from '@/lib/journal';
 
 export interface AutomationRecord {
   id: string;
@@ -10,6 +16,9 @@ export interface AutomationRecord {
   description: string | null;
   cronSchedule: string;
   modelId: string;
+  automationType: 'task' | 'research';
+  capability: string;
+  timezone: string;
   status: 'active' | 'paused' | 'archived';
   lastRun: string | null;
   nextRun: string | null;
@@ -20,6 +29,8 @@ export interface AutomationRunRecord {
   id: string;
   automationId: string;
   taskId: string | null;
+  researchRunId: string | null;
+  runType: 'task' | 'research';
   status: 'pending' | 'completed' | 'failed';
   output: string | null;
   error: string | null;
@@ -30,11 +41,13 @@ export interface AutomationRunRecord {
 interface AutomationRow {
   id: string; title: string; description: string | null; cron_schedule: string;
   model_id: string; status: 'active' | 'paused' | 'archived';
+  automation_type: 'task' | 'research'; capability: string; timezone: string;
   last_run: Date | null; next_run: Date | null; created_at: Date;
 }
 
 interface RunRow {
   id: string; automation_id: string; task_id: string | null;
+  research_run_id: string | null; run_type: 'task' | 'research';
   status: 'pending' | 'completed' | 'failed'; output: string | null; error: string | null;
   started_at: Date; completed_at: Date | null;
 }
@@ -42,7 +55,8 @@ interface RunRow {
 function mapAutomation(r: AutomationRow): AutomationRecord {
   return {
     id: r.id, title: r.title, description: r.description, cronSchedule: r.cron_schedule,
-    modelId: r.model_id, status: r.status, lastRun: r.last_run?.toISOString() ?? null,
+    modelId: r.model_id, automationType: r.automation_type, capability: r.capability,
+    timezone: r.timezone, status: r.status, lastRun: r.last_run?.toISOString() ?? null,
     nextRun: r.next_run?.toISOString() ?? null, createdAt: r.created_at.toISOString(),
   };
 }
@@ -50,6 +64,7 @@ function mapAutomation(r: AutomationRow): AutomationRecord {
 function mapRun(r: RunRow): AutomationRunRecord {
   return {
     id: r.id, automationId: r.automation_id, taskId: r.task_id,
+    researchRunId: r.research_run_id, runType: r.run_type,
     status: r.status, output: r.output, error: r.error,
     startedAt: r.started_at.toISOString(), completedAt: r.completed_at?.toISOString() ?? null,
   };
@@ -145,13 +160,26 @@ export async function getAutomation(id: string): Promise<AutomationRecord | null
 }
 
 export async function createAutomation(input: {
-  title: string; description?: string; cronSchedule: string; modelId: string;
+  title: string;
+  description?: string;
+  cronSchedule: string;
+  capability?: string;
+  automationType?: 'task' | 'research';
+  modelId?: string;
+  timezone?: string;
 }): Promise<AutomationRecord> {
   const sql = getDb();
   const nextRun = getNextRunTime(input.cronSchedule);
   const [row] = await sql<AutomationRow[]>`
-    INSERT INTO mission_control.automations (title, description, cron_schedule, model_id, next_run)
-    VALUES (${input.title}, ${input.description ?? null}, ${input.cronSchedule}, ${input.modelId}, ${nextRun})
+    INSERT INTO mission_control.automations (
+      title, description, cron_schedule, model_id, automation_type,
+      capability, timezone, next_run
+    )
+    VALUES (
+      ${input.title}, ${input.description ?? null}, ${input.cronSchedule},
+      ${input.modelId ?? 'auto'}, ${input.automationType ?? 'task'},
+      ${input.capability ?? 'reasoning'}, ${input.timezone ?? 'Australia/Sydney'}, ${nextRun}
+    )
     RETURNING *
   `;
   return mapAutomation(row);
@@ -192,14 +220,65 @@ export async function tickAutomations(): Promise<{ executed: number; errors: str
   for (const row of dueRows) {
     const automation = mapAutomation(row);
     try {
+      if (automation.automationType === 'research') {
+        const [run] = await sql<RunRow[]>`
+          INSERT INTO mission_control.automation_runs (automation_id, run_type)
+          VALUES (${automation.id}, 'research')
+          RETURNING *
+        `;
+        try {
+          const result = await runWeeklyResearchEngine('weekly');
+          await sql`
+            UPDATE mission_control.automation_runs
+            SET status = 'completed',
+                research_run_id = ${result.runId},
+                output = ${result.summary.slice(0, 2000)},
+                completed_at = NOW()
+            WHERE id = ${run.id}
+          `;
+        } catch (researchError) {
+          const message = researchError instanceof Error ? researchError.message : 'Research run failed';
+          await sql`
+            UPDATE mission_control.automation_runs
+            SET status = 'failed', error = ${message}, completed_at = NOW()
+            WHERE id = ${run.id}
+          `;
+          errors.push(`${automation.title}: ${message}`);
+        }
+
+        const nextRun = getNextRunTime(automation.cronSchedule);
+        await sql`
+          UPDATE mission_control.automations
+          SET last_run = NOW(), next_run = ${nextRun}
+          WHERE id = ${automation.id}
+        `;
+        executed++;
+        continue;
+      }
+
+      const parsedCapability = capabilitySchema.safeParse(automation.capability);
+      const capability = parsedCapability.success ? parsedCapability.data : 'reasoning';
+      const route = await rankCapabilityCandidates({
+        capability,
+        estimatedInputTokens: 2500,
+        estimatedOutputTokens: 4000,
+        allowLocal: false,
+      });
+      if (route.requiresCostApproval) {
+        const estimate = route.selected.estimatedCostUsd;
+        throw new Error(
+          `Automation paused before model use: estimated ${capability} cost is ${estimate === null ? 'unknown' : `$${estimate.toFixed(4)}`}, above the $${route.costThresholdUsd.toFixed(4)} approval threshold.`,
+        );
+      }
+
       // Create auto-generated task
       const task = await createTask({
         title: `[Auto] ${automation.title}`,
         description: automation.description || automation.title,
         status: 'backlog',
         priority: 'medium',
-        assignedAi: automation.modelId,
-        notes: `Auto-generated by automation: ${automation.title}`,
+        assignedAi: route.selected.name,
+        notes: `Auto-generated by automation: ${automation.title}. Capability route: ${capability}. ${route.selected.selectionReason}`,
       });
 
       // Record the run
@@ -239,6 +318,24 @@ export async function tickAutomations(): Promise<{ executed: number; errors: str
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
       errors.push(`${automation.title}: ${msg}`);
+      await sql`
+        INSERT INTO mission_control.automation_runs (
+          automation_id, run_type, status, error, completed_at
+        )
+        VALUES (${automation.id}, ${automation.automationType}, 'failed', ${msg}, NOW())
+      `.catch(() => undefined);
+      const nextRun = getNextRunTime(automation.cronSchedule);
+      await sql`
+        UPDATE mission_control.automations
+        SET last_run = NOW(), next_run = ${nextRun}
+        WHERE id = ${automation.id}
+      `.catch(() => undefined);
+      await createJournalEntry({
+        title: `Automation paused or failed: ${automation.title}`,
+        detail: `${msg}\nMission Control did not silently continue past the failure or cost checkpoint.`,
+        entryType: 'ops',
+        source: 'automations/failure',
+      }).catch(() => undefined);
     }
   }
 

@@ -1,14 +1,20 @@
 import 'server-only';
 
 import { generateChatCompletion as generateAnthropicCompletion } from '@/lib/ai/anthropic';
-import { isGptAvailable } from '@/lib/ai/gpt-oauth-status';
-import { AI_MODELS, type AIModel } from '@/lib/ai/models';
 import { generateChatCompletion as generateMoonshotCompletion } from '@/lib/ai/moonshot';
 import { generateChatCompletion as generateOpenAICompletion } from '@/lib/ai/openai';
-import { generateLocalCompletion, listActiveLocalModels } from '@/lib/local-llm/client';
+import {
+  type Capability,
+  type CapabilityProvider,
+  type CapabilityRoutingDecision,
+  rankCapabilityCandidates,
+  serializeRoutingDecision,
+} from '@/lib/capability-registry';
+import { getDb } from '@/lib/db';
+import { generateLocalCompletion } from '@/lib/local-llm/client';
 
-export type ModelCapability = 'product-planning' | 'conversation';
-export type RoutedProvider = 'openai' | 'anthropic' | 'moonshot' | 'local';
+export type ModelCapability = Capability;
+export type RoutedProvider = CapabilityProvider;
 export type RoutedMessage = { role: 'system' | 'user' | 'assistant'; content: string };
 
 export interface ModelSelection {
@@ -27,101 +33,178 @@ export interface RoutedCompletion {
   content: string;
   selection: ModelSelection;
   recoveredAttempts: ModelAttempt[];
+  routingDecision: ReturnType<typeof serializeRoutingDecision>;
 }
 
-type Candidate = ModelSelection & {
-  complete: (messages: RoutedMessage[], maxTokens: number) => Promise<string>;
-};
-
-function hasValue(value: string | undefined): boolean {
-  return Boolean(value && value.trim());
+export interface RoutingContext {
+  orchestrationRequestId?: string | null;
+  projectId?: string | null;
+  estimatedInputTokens?: number;
+  costApproved?: boolean;
+  privacySensitive?: boolean;
 }
 
-function hostedCandidate(model: AIModel): Candidate {
-  return {
-    id: model.id,
-    name: model.name,
-    provider: model.provider,
-    complete: (messages, maxTokens) => {
-      switch (model.provider) {
-        case 'anthropic':
-          return generateAnthropicCompletion(messages, { model: model.id, maxTokens });
-        case 'moonshot':
-          return generateMoonshotCompletion(messages, { model: model.id, maxTokens });
-        case 'openai':
-          return generateOpenAICompletion(messages, { model: model.id, maxTokens });
-      }
-    },
-  };
-}
+export class CostApprovalRequiredError extends Error {
+  readonly routingDecision: CapabilityRoutingDecision;
 
-async function getCandidates(capability: ModelCapability): Promise<Candidate[]> {
-  const candidates: Candidate[] = [];
-  const anthropicConfigured = hasValue(process.env.ANTHROPIC_API_KEY);
-  const moonshotConfigured = hasValue(process.env.MOONSHOT_API_KEY);
-  const openAiApiConfigured = hasValue(process.env.OPENAI_API_KEY);
-  const openAiOauthConfigured = hasValue(process.env.OPENAI_OAUTH_ENDPOINT);
-  const gptAvailable = openAiApiConfigured || (openAiOauthConfigured && await isGptAvailable().catch(() => false));
-  const configuredProviders: Record<AIModel['provider'], boolean> = {
-    anthropic: anthropicConfigured,
-    moonshot: moonshotConfigured,
-    openai: gptAvailable,
-  };
-  const priority = capability === 'product-planning'
-    ? ['claude-opus-4-6', 'gpt-5.4', 'claude-sonnet-4-5', 'kimi-k2.5']
-    : ['gpt-5.4', 'claude-sonnet-4-5', 'kimi-k2.5', 'claude-opus-4-6'];
-  const rank = new Map(priority.map((id, index) => [id, index]));
-  const hostedModels = [...AI_MODELS]
-    .filter((model) => configuredProviders[model.provider])
-    .sort((a, b) => (rank.get(a.id) ?? priority.length) - (rank.get(b.id) ?? priority.length));
-
-  candidates.push(...hostedModels.map(hostedCandidate));
-
-  try {
-    const localModels = await listActiveLocalModels();
-    for (const local of localModels) {
-      candidates.push({
-        id: `local:${local.id}`,
-        name: local.name,
-        provider: 'local',
-        complete: (messages, maxTokens) => generateLocalCompletion(local.endpoint, local.modelId, messages, maxTokens),
-      });
-    }
-  } catch {
-    // Local models are optional and the V2 table may not exist on older installations.
+  constructor(decision: CapabilityRoutingDecision) {
+    const estimate = decision.selected.estimatedCostUsd === null
+      ? 'an unconfigured amount'
+      : `$${decision.selected.estimatedCostUsd.toFixed(4)}`;
+    super(`The best available ${decision.capability} route is estimated to cost ${estimate}, above the $${decision.costThresholdUsd.toFixed(4)} approval threshold.`);
+    this.name = 'CostApprovalRequiredError';
+    this.routingDecision = decision;
   }
+}
 
-  return candidates;
+function estimateTokens(messages: RoutedMessage[]): number {
+  const characters = messages.reduce((total, message) => total + message.content.length, 0);
+  return Math.max(1, Math.ceil(characters / 4));
+}
+
+async function recordRoutingEvent(input: {
+  decision: CapabilityRoutingDecision;
+  candidate: CapabilityRoutingDecision['selected'];
+  context: RoutingContext;
+  success: boolean;
+  latencyMs: number;
+  error?: string;
+}): Promise<void> {
+  try {
+    const sql = getDb();
+    await sql`
+      INSERT INTO mission_control.model_routing_events (
+        orchestration_request_id, project_id, capability, model_id, model_name,
+        provider, estimated_input_tokens, estimated_output_tokens,
+        estimated_cost_usd, score, success, latency_ms, error, selection_reason
+      )
+      VALUES (
+        ${input.context.orchestrationRequestId ?? null},
+        ${input.context.projectId ?? null},
+        ${input.decision.capability},
+        ${input.candidate.id},
+        ${input.candidate.name},
+        ${input.candidate.provider},
+        ${input.decision.estimatedInputTokens},
+        ${input.decision.estimatedOutputTokens},
+        ${input.candidate.estimatedCostUsd},
+        ${input.candidate.score},
+        ${input.success},
+        ${input.latencyMs},
+        ${input.error?.slice(0, 1000) ?? null},
+        ${input.candidate.selectionReason}
+      )
+    `;
+  } catch {
+    // Routing remains available during a rolling migration; the Journal records recovery.
+  }
+}
+
+async function completeCandidate(
+  candidate: CapabilityRoutingDecision['selected'],
+  messages: RoutedMessage[],
+  maxTokens: number,
+): Promise<string> {
+  if (candidate.provider === 'anthropic') {
+    return generateAnthropicCompletion(messages, { model: candidate.id, maxTokens });
+  }
+  if (candidate.provider === 'moonshot') {
+    return generateMoonshotCompletion(messages, { model: candidate.id, maxTokens });
+  }
+  if (candidate.provider === 'openai') {
+    return generateOpenAICompletion(messages, { model: candidate.id, maxTokens });
+  }
+  if (!candidate.localEndpoint || !candidate.localModelId) {
+    throw new Error(`Local route ${candidate.name} is missing its endpoint configuration.`);
+  }
+  return generateLocalCompletion(
+    candidate.localEndpoint,
+    candidate.localModelId,
+    messages,
+    maxTokens,
+  );
 }
 
 export async function completeWithCapability(
   capability: ModelCapability,
   buildMessages: (selection: ModelSelection) => RoutedMessage[],
   maxTokens = 4000,
+  context: RoutingContext = {},
 ): Promise<RoutedCompletion> {
-  const candidates = await getCandidates(capability);
-  if (candidates.length === 0) {
-    throw new Error('No configured AI model is currently available to Mission Control.');
+  const provisionalTokens = Math.max(1, context.estimatedInputTokens ?? 3000);
+  let decision = await rankCapabilityCandidates({
+    capability,
+    estimatedInputTokens: provisionalTokens,
+    estimatedOutputTokens: maxTokens,
+    privacySensitive: context.privacySensitive,
+  });
+
+  const provisionalSelection: ModelSelection = {
+    id: decision.selected.id,
+    name: decision.selected.name,
+    provider: decision.selected.provider,
+  };
+  const exactInputTokens = estimateTokens(buildMessages(provisionalSelection));
+  if (exactInputTokens !== provisionalTokens) {
+    decision = await rankCapabilityCandidates({
+      capability,
+      estimatedInputTokens: exactInputTokens,
+      estimatedOutputTokens: maxTokens,
+      privacySensitive: context.privacySensitive,
+    });
   }
 
+  if (decision.requiresCostApproval && !context.costApproved) {
+    throw new CostApprovalRequiredError(decision);
+  }
+
+  const candidates = [decision.selected, ...decision.alternatives];
   const recoveredAttempts: ModelAttempt[] = [];
   for (const candidate of candidates) {
+    const selection: ModelSelection = {
+      id: candidate.id,
+      name: candidate.name,
+      provider: candidate.provider,
+    };
+    const messages = buildMessages(selection);
+    const startedAt = Date.now();
     try {
-      const content = await candidate.complete(buildMessages(candidate), maxTokens);
+      const content = await completeCandidate(candidate, messages, maxTokens);
+      await recordRoutingEvent({
+        decision,
+        candidate,
+        context,
+        success: true,
+        latencyMs: Date.now() - startedAt,
+      });
       return {
         content,
-        selection: { id: candidate.id, name: candidate.name, provider: candidate.provider },
+        selection,
         recoveredAttempts,
+        routingDecision: serializeRoutingDecision({
+          ...decision,
+          selected: candidate,
+          alternatives: candidates.filter((item) => item.id !== candidate.id),
+        }),
       };
     } catch (error) {
+      const message = error instanceof Error ? error.message.slice(0, 500) : 'Unknown model error';
       recoveredAttempts.push({
         modelName: candidate.name,
         provider: candidate.provider,
-        error: error instanceof Error ? error.message.slice(0, 500) : 'Unknown model error',
+        error: message,
+      });
+      await recordRoutingEvent({
+        decision,
+        candidate,
+        context,
+        success: false,
+        latencyMs: Date.now() - startedAt,
+        error: message,
       });
     }
   }
 
   const attempted = recoveredAttempts.map((attempt) => attempt.modelName).join(', ');
-  throw new Error(`Mission Control could not generate a response with the available models (${attempted}).`);
+  throw new Error(`Mission Control could not complete ${capability} with the available routes (${attempted}).`);
 }

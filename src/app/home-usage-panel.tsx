@@ -38,7 +38,6 @@ function getStalenessLabel(source: string): { label: string; stale: boolean } {
 
 export function HomeUsagePanel({ initialUsage }: { initialUsage: UsageSnapshot }) {
   const [usage, setUsage] = useState(initialUsage);
-  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [refreshError, setRefreshError] = useState(false);
 
   useEffect(() => {
@@ -54,7 +53,6 @@ export function HomeUsagePanel({ initialUsage }: { initialUsage: UsageSnapshot }
         const data = (await response.json()) as UsageSnapshot;
         if (!cancelled) {
           setUsage(data);
-          setLastRefresh(new Date());
           setRefreshError(false);
         }
       } catch {

@@ -46,7 +46,7 @@ Provide your research in this exact JSON format (respond ONLY with JSON, no mark
     let researchData: IdeaResearchData;
     try {
       // Remove markdown code blocks
-      let cleaned = result.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+      const cleaned = result.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
 
       // Try parsing once
       let parsed = JSON.parse(cleaned);

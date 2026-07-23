@@ -37,7 +37,7 @@ export async function getOAuth2Client() {
   return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 }
 
-export function getAuthUrl(oauth2Client: any) {
+export function getAuthUrl(oauth2Client: Awaited<ReturnType<typeof getOAuth2Client>>) {
   return oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: [
