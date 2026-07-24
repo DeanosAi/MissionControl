@@ -155,8 +155,11 @@ export async function testAIProviderConnection(providerId: string): Promise<Prov
       const apiKey = await getProviderApiKey('moonshot');
       if (!apiKey) throw new Error('No Moonshot API key is configured.');
       await generateMoonshotCompletion(
-        [{ role: 'user', content: 'Reply OK.' }],
-        { apiKey, model: 'kimi-k2.5', maxTokens: 2 },
+        [{ role: 'user', content: 'Reply with exactly OK.' }],
+        // Kimi K2.5 may spend part of the allowance on internal reasoning.
+        // Two tokens can produce a valid HTTP response with no visible content,
+        // which incorrectly marks a healthy credential as unavailable.
+        { apiKey, model: 'kimi-k2.5', maxTokens: 128 },
       );
       message = 'Moonshot completed a minimal connection check.';
     } else if (providerId === 'local') {
