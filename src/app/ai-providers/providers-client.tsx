@@ -16,15 +16,15 @@ import {
 } from './actions';
 import styles from './providers.module.css';
 
-function relativeTime(value: string | null): string {
+function displayTime(value: string | null): string {
   if (!value) return 'Never';
-  const elapsed = Date.now() - new Date(value).getTime();
-  const minutes = Math.max(0, Math.floor(elapsed / 60_000));
-  if (minutes < 1) return 'Just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
+  return new Intl.DateTimeFormat('en-AU', {
+    day: 'numeric',
+    month: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: 'Australia/Sydney',
+  }).format(new Date(value));
 }
 
 function healthLabel(provider: AIProviderRecord): string {
@@ -170,7 +170,7 @@ export function AIProvidersClient({
           <div className={styles.factGrid}>
             <div><span>Connection</span><strong>{selected.credentialConfigured ? 'Configured' : 'Not configured'}</strong></div>
             <div><span>Credential</span><strong>{selected.credentialFingerprint ? `Encrypted · ${selected.credentialFingerprint}` : selected.credentialSource}</strong></div>
-            <div><span>Last successful call</span><strong>{relativeTime(selected.lastSuccessfulCallAt)}</strong></div>
+            <div><span>Last successful call</span><strong>{displayTime(selected.lastSuccessfulCallAt)}</strong></div>
             <div><span>Estimated pricing</span><strong>{selected.estimatedPricing}</strong></div>
           </div>
 
