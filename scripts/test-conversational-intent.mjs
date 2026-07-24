@@ -12,6 +12,7 @@ const productRequests = [
   'Scope a new automation for weekly research',
   'Build me a grocery tracker',
   'Update Mission Control with a compact mobile navigation',
+  'Create a task management app for the content team',
 ];
 
 for (const request of productRequests) {

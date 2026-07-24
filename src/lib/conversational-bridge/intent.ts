@@ -6,6 +6,7 @@ const UPDATE_REQUEST = /\b(update|upgrade|improve|change|modify|customi[sz]e|ext
 const REQUEST_START = /^(?:please\s+)?(?:(?:can|could|would)\s+you\s+)?(?:help\s+me\s+)?(?:build|create|make|design|develop|launch|prototype|update|improve|change|extend|add|fix|redesign|refactor|continue|enhance)\b/i;
 const PLANNING_REQUEST_START = /^(?:please\s+)?(?:(?:can|could|would)\s+you\s+)?(?:help\s+me\s+)?(?:plan|scope|specify|draft|propose)(?:\s+(?:me|for\s+me))?\b/i;
 const PRODUCT_WORK = /\b(feature|upgrade|project|app|application|website|site|system|workflow|automation|product|module|integration|interface|ui|user\s+experience|dashboard|theme|navigation|page|screen|mission\s+control)\b/i;
+const EXPLICIT_TASK_COMMAND = /^(?:please\s+)?(?:(?:can|could|would)\s+you\s+)?(?:create|new|add)\s+(?:a\s+)?task(?:\s*:|\s+(?:called|named|to)\b)/i;
 const STOP_WORDS = new Set([
   'a', 'an', 'and', 'app', 'application', 'build', 'create', 'for', 'help', 'i', 'in', 'make',
   'me', 'my', 'of', 'on', 'please', 'project', 'the', 'this', 'to', 'want', 'with',
@@ -14,7 +15,7 @@ const STOP_WORDS = new Set([
 export function isConversationalBuildRequest(message: string): boolean {
   const trimmed = message.trim();
   if (trimmed.length < 8) return false;
-  if (/^(create|new|add)\s+(?:a\s+)?task\b/i.test(trimmed)) return false;
+  if (EXPLICIT_TASK_COMMAND.test(trimmed)) return false;
   if (/^(?:please\s+)?(?:(?:can|could|would)\s+you\s+)?add\s+up\b/i.test(trimmed)) return false;
   return REQUEST_START.test(trimmed)
     || (PLANNING_REQUEST_START.test(trimmed) && PRODUCT_WORK.test(trimmed))
