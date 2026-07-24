@@ -20,11 +20,12 @@ export async function generateChatCompletion(
 ): Promise<string> {
   const model = config.model || DEFAULT_MODEL;
   const maxTokens = config.maxTokens || DEFAULT_MAX_TOKENS;
+  const configuredApiKey = config.apiKey?.trim();
 
   // OAuth endpoint (preferred - uses subscription via tunnel, no API credits)
   const oauthEndpoint = process.env.OPENAI_OAUTH_ENDPOINT;
   
-  if (oauthEndpoint) {
+  if (oauthEndpoint && !configuredApiKey) {
     try {
       const response = await fetch(oauthEndpoint, {
         method: 'POST',
@@ -63,7 +64,7 @@ export async function generateChatCompletion(
   }
 
   // Fallback to API key (if configured)
-  const apiKey = config.apiKey || process.env.OPENAI_API_KEY;
+  const apiKey = configuredApiKey || process.env.OPENAI_API_KEY;
   
   if (!apiKey) {
     throw new Error(

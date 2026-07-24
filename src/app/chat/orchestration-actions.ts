@@ -7,6 +7,7 @@ import { requireAdminSession } from '@/lib/auth/session';
 import {
   approveConversationPlanningCost,
   approveConversationProposal,
+  rejectConversationProposal,
   reviseConversationProposal,
 } from '@/lib/conversational-bridge/service';
 import type { OrchestrationRequestRecord } from '@/lib/conversational-bridge/types';
@@ -66,5 +67,21 @@ export async function reviseProposalAction(id: string, feedback: string): Promis
     return { request };
   } catch (error) {
     return { error: error instanceof Error ? error.message : 'Unable to revise the proposal.' };
+  }
+}
+
+export async function rejectProposalAction(id: string, note = 'The user rejected this proposal.'): Promise<ProposalActionResult> {
+  await requireAdminSession();
+  const parsedId = idSchema.safeParse(id);
+  const parsedNote = z.string().trim().min(3).max(2000).safeParse(note);
+  if (!parsedId.success) return { error: 'Invalid proposal id.' };
+  if (!parsedNote.success) return { error: 'Add a short reason before rejecting the proposal.' };
+
+  try {
+    const request = await rejectConversationProposal(parsedId.data, parsedNote.data);
+    revalidateOrchestrationViews();
+    return { request };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : 'Unable to reject the proposal.' };
   }
 }

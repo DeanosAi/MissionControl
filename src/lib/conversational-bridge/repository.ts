@@ -244,6 +244,25 @@ export async function approveRequest(id: string, note: string | null): Promise<O
   return request;
 }
 
+export async function rejectRequest(id: string, note: string | null): Promise<OrchestrationRequestRecord> {
+  const sql = getDb();
+  const result = await sql`
+    UPDATE mission_control.orchestration_requests
+    SET status = 'rejected',
+        decision_note = ${note},
+        updated_at = NOW()
+    WHERE id = ${id}
+      AND status IN ('proposal-ready', 'changes-requested')
+    RETURNING id
+  `;
+  if (result.count === 0) {
+    throw new Error('Only a proposal awaiting a decision can be rejected.');
+  }
+  const request = await getOrchestrationRequest(id);
+  if (!request) throw new Error('Rejection saved but could not be reloaded.');
+  return request;
+}
+
 export async function markRequestFailed(id: string, reason: string): Promise<void> {
   const sql = getDb();
   await sql`

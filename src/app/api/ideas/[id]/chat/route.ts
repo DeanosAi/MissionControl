@@ -1,6 +1,6 @@
 import { requireAdminSession } from '@/lib/auth/session';
 import { getIdea, appendConversation } from '@/lib/ideas';
-import { generateChatCompletion } from '@/lib/ai/moonshot';
+import { completeWithCapability } from '@/lib/conversational-bridge/model-router';
 
 export async function POST(
   request: Request,
@@ -40,8 +40,7 @@ export async function POST(
     // then add the new user message explicitly at the end.
     const rawHistory = Array.isArray(idea.conversationHistory) ? idea.conversationHistory : [];
 
-    // CRITICAL: Filter out any messages with empty/missing role or content.
-    // This is the root cause of the Moonshot 400 "role '<empty>'" error.
+    // Filter out messages with empty or unsupported roles before provider routing.
     const validHistory = rawHistory
       .filter(m =>
         m &&
@@ -51,7 +50,7 @@ export async function POST(
       )
       .slice(-8);
 
-    // Collapse consecutive same-role messages (Moonshot requires alternating roles)
+    // Collapse consecutive same-role messages for broad provider compatibility.
     const cleanHistory: { role: 'user' | 'assistant'; content: string }[] = [];
     for (const m of validHistory) {
       const role = m.role as 'user' | 'assistant';
@@ -68,14 +67,16 @@ ${idea.description ? `The idea: ${idea.description}` : ''}
 ${idea.researchData ? 'Research has been completed for this idea. Help the user refine, expand, or act on the research findings.' : 'Help the user clarify and develop their idea. Ask about target audience, goals, timeline, budget, and similar products they have seen.'}
 Be concise, practical, and conversational. Do not use JSON. Respond in plain readable text.`;
 
-    const aiResponse = await generateChatCompletion(
-      [
+    const completion = await completeWithCapability(
+      'conversation',
+      () => [
         { role: 'system', content: systemPrompt },
         ...cleanHistory,
         { role: 'user', content: message.trim() },
       ],
-      { model: 'kimi-k2.5', maxTokens: 2000 },
+      2000,
     );
+    const aiResponse = completion.content;
 
     // Save assistant response to DB
     await appendConversation(id, { role: 'assistant', content: aiResponse, timestamp: new Date().toISOString() });

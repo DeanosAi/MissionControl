@@ -1,110 +1,239 @@
-import Image from 'next/image';
 import Link from 'next/link';
+
 import { DashboardShell } from '@/components/dashboard-shell';
-import { SectionHeader } from '@/components/section-header';
-import { recentActivity } from '@/lib/data';
-import { getUsageSnapshot } from '@/lib/usage';
-import { HomeUsagePanel } from './home-usage-panel';
+import { DigitalPersona } from '@/components/digital-persona';
+import { listAutomations } from '@/lib/automations';
 import { listOrchestrationRequests } from '@/lib/conversational-bridge/repository';
-import { listIdeas } from '@/lib/ideas';
-import { listJournalEntries } from '@/lib/journal';
+import { listDomainMemory } from '@/lib/memory-domains/repository';
 import { listProjects } from '@/lib/projects';
+import { listResearchReports } from '@/lib/research-engine/repository';
 import { listTasks } from '@/lib/tasks';
 
+import styles from './home.module.css';
+
+function formatDate(value: string | null) {
+  if (!value) return 'Not yet';
+  return new Intl.DateTimeFormat('en-AU', {
+    day: 'numeric',
+    month: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(value));
+}
+
+function greeting() {
+  const hour = Number(new Intl.DateTimeFormat('en-AU', {
+    hour: '2-digit',
+    hour12: false,
+    timeZone: 'Australia/Sydney',
+  }).format(new Date()));
+  if (hour < 12) return 'Good morning';
+  if (hour < 18) return 'Good afternoon';
+  return 'Good evening';
+}
+
 export default async function HomePage() {
-  const [usage, journalEntries, tasks, projects, ideas, requests] = await Promise.all([
-    getUsageSnapshot(),
-    listJournalEntries(100).catch(() => []),
+  const [tasks, projects, requests, memories, research, automations] = await Promise.all([
     listTasks().catch(() => []),
     listProjects().catch(() => []),
-    listIdeas().catch(() => []),
-    listOrchestrationRequests(100).catch(() => []),
+    listOrchestrationRequests(50).catch(() => []),
+    listDomainMemory({ includeArchived: false, limit: 12 }).catch(() => []),
+    listResearchReports(6).catch(() => []),
+    listAutomations().catch(() => []),
   ]);
 
-  const activeTasks = tasks.filter(t => t.status !== 'done' && t.status !== 'archived');
+  const activeProjects = projects
+    .filter((project) => ['proposal', 'planning', 'active'].includes(project.status))
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const runningTasks = tasks
+    .filter((task) => task.status === 'in-progress' || task.status === 'review')
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const approvals = requests.filter((request) => (
+    request.status === 'proposal-ready' || request.status === 'cost-approval-required'
+  ));
+  const activeAutomations = automations.filter((automation) => automation.status === 'active');
+  const latestResearch = research[0] ?? null;
+  const researchAvailable = Boolean(latestResearch);
 
   return (
-    <DashboardShell active="home" title="Mission Control" subtitle="">
-      <section className="hero card hero-card hero-top banner-hero page-home">
-        <Image
-          src="/mission-control-banner.svg"
-          alt="Mission Control banner"
-          width={1600}
-          height={420}
-          className="hero-banner"
-          priority
-        />
+    <DashboardShell
+      active="home"
+      title="Mission Control"
+      subtitle="Your calm daily view of work, decisions, research, and learning."
+    >
+      <section className={styles.commandCentre}>
+        <div className={styles.greeting}>
+          <DigitalPersona state={approvals.length > 0 ? 'waiting' : 'greeting'} size="medium" />
+          <div>
+            <span className={styles.eyebrow}>{greeting()}, Dean</span>
+            <h2>{approvals.length > 0 ? `${approvals.length} decision${approvals.length === 1 ? '' : 's'} need your attention.` : 'Everything important is visible.'}</h2>
+            <p>
+              {runningTasks.length} items are moving, {activeProjects.length} projects are active,
+              and weekly research is {researchAvailable ? 'available' : 'not yet available'}.
+            </p>
+          </div>
+        </div>
+        <Link className={styles.commandBar} href="/chat">
+          <span>Ask Mission Control anything…</span>
+          <small>Conversation</small>
+          <i aria-hidden="true">⌁</i>
+        </Link>
+        <p className={styles.voiceNote}>The command surface is voice-ready. Audio input arrives in a future sprint.</p>
       </section>
 
-      <section className="card home-orchestration-cta">
-        <div>
-          <div className="eyebrow">Mission Control V3</div>
-          <h2>Start with a conversation.</h2>
-          <p>Describe the outcome you want. Mission Control will create the project, think through the product, show a UI concept, and wait for approval.</p>
-        </div>
-        <Link href="/chat" className="login-button home-orchestration-button">Open Orchestrator →</Link>
+      <section className={styles.dailyPulse} aria-label="Daily pulse">
+        <article data-tone={approvals.length > 0 ? 'attention' : 'calm'}>
+          <span>Awaiting approval</span>
+          <strong>{approvals.length}</strong>
+          <p>{approvals[0]?.projectTitle ?? 'No decisions are waiting.'}</p>
+        </article>
+        <article>
+          <span>Running work</span>
+          <strong>{runningTasks.length}</strong>
+          <p>{runningTasks[0]?.title ?? 'No tasks are currently moving.'}</p>
+        </article>
+        <article>
+          <span>Projects in progress</span>
+          <strong>{activeProjects.length}</strong>
+          <p>{activeProjects[0]?.title ?? 'Start with a conversation.'}</p>
+        </article>
+        <article data-tone={researchAvailable ? 'calm' : 'attention'}>
+          <span>Weekly research</span>
+          <strong>{researchAvailable ? 'Available' : 'Not run'}</strong>
+          <p>{latestResearch ? `Updated ${formatDate(latestResearch.createdAt)}` : 'No report yet.'}</p>
+        </article>
       </section>
 
-      <HomeUsagePanel initialUsage={usage} />
-
-      <section className="metric-grid metric-grid-spread">
-        <div className="metric-card accent-yellow">
-          <span>Ideas tracked</span>
-          <strong>{ideas.length}</strong>
-        </div>
-        <div className="metric-card accent-blue">
-          <span>Active tasks</span>
-          <strong>{activeTasks.length}</strong>
-        </div>
-        <div className="metric-card accent-blue-light">
-          <span>Projects</span>
-          <strong>{projects.length}</strong>
-        </div>
-        <div className="metric-card accent-orange">
-          <span>Journal entries</span>
-          <strong>{journalEntries.length}</strong>
-        </div>
-      </section>
-
-      <section className="grid-two overview-grid">
-        <article className="card page-home-accent">
-          <SectionHeader
-            title="Recent Activity"
-            subtitle="A quick pulse on the most important work happening around Mission Control."
-          />
-          <div className="stack">
-            {recentActivity.map((item) => (
-              <div key={item} className="list-row compact">
+      <section className={styles.priorityGrid}>
+        <article className={styles.focusPanel}>
+          <header>
+            <div>
+              <span className={styles.eyebrow}>Needs your attention</span>
+              <h2>Approvals</h2>
+            </div>
+            <Link href="/chat">Open workspace</Link>
+          </header>
+          <div className={styles.list}>
+            {approvals.length > 0 ? approvals.slice(0, 4).map((request) => (
+              <Link href={`/chat#proposal-${request.id}`} className={styles.listItem} key={request.id}>
                 <div>
-                  <h3>{item}</h3>
+                  <strong>{request.projectTitle}</strong>
+                  <p>{request.proposal?.summary ?? request.normalizedIntent}</p>
                 </div>
-                <span className="pill ghost">updated</span>
+                <span>{request.status === 'cost-approval-required' ? 'Cost' : 'Review'}</span>
+              </Link>
+            )) : (
+              <div className={styles.emptyState}>
+                <DigitalPersona state="celebrating" size="small" />
+                <div>
+                  <strong>You are caught up.</strong>
+                  <p>No proposal or cost approval is waiting.</p>
+                </div>
               </div>
-            ))}
+            )}
           </div>
         </article>
 
-        <article className="card accent-card page-home-accent">
-          <SectionHeader
-            title="Live Snapshot"
-            subtitle="A compact view of what currently has motion and what deserves attention next."
-          />
-          <div className="snapshot-grid">
-            <div className="snapshot-card accent-blue">
-              <span>Top project</span>
-              <strong>{projects[0]?.title ?? 'No project yet'}</strong>
-              <p>{projects[0]?.summary ?? 'Start in the Orchestrator to create one.'}</p>
+        <article className={styles.focusPanel}>
+          <header>
+            <div>
+              <span className={styles.eyebrow}>In motion</span>
+              <h2>Current work</h2>
             </div>
-            <div className="snapshot-card accent-blue-light">
-              <span>Active tasks</span>
-              <strong>{activeTasks.length} in progress</strong>
-              <p>{activeTasks.slice(0, 2).map(t => t.title).join(', ') || 'None right now'}</p>
+            <Link href="/projects/current-tasks">View tasks</Link>
+          </header>
+          <div className={styles.list}>
+            {runningTasks.length > 0 ? runningTasks.slice(0, 4).map((task) => (
+              <div className={styles.listItem} key={task.id}>
+                <div>
+                  <strong>{task.title}</strong>
+                  <p>{task.description}</p>
+                </div>
+                <span>{task.status.replaceAll('-', ' ')}</span>
+              </div>
+            )) : (
+              <div className={styles.emptyState}>
+                <DigitalPersona state="waiting" size="small" />
+                <div>
+                  <strong>No running tasks.</strong>
+                  <p>Approved proposals still stop before execution.</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </article>
+      </section>
+
+      <section className={styles.insightGrid}>
+        <article className={styles.focusPanel}>
+          <header>
+            <div>
+              <span className={styles.eyebrow}>Technology watch</span>
+              <h2>Weekly research</h2>
             </div>
-            <div className="snapshot-card accent-yellow">
-              <span>Conversational proposals</span>
-              <strong>{requests.length}</strong>
-              <p>{requests.filter((request) => request.status === 'proposal-ready').length} waiting for approval</p>
+            <Link href="/memory">Research memory</Link>
+          </header>
+          {latestResearch ? (
+            <div className={styles.researchLead}>
+              <div>
+                <span data-recommendation={latestResearch.recommendation}>
+                  {latestResearch.recommendation.replaceAll('-', ' ')}
+                </span>
+                <small>{latestResearch.technology}</small>
+              </div>
+              <h3>{latestResearch.title}</h3>
+              <p>{latestResearch.whyItMatters}</p>
+              <details>
+                <summary>Why Mission Control rated it this way</summary>
+                <p>{latestResearch.recommendationRationale}</p>
+              </details>
             </div>
+          ) : (
+            <p className={styles.panelEmpty}>No weekly technology report has been generated yet.</p>
+          )}
+        </article>
+
+        <article className={styles.focusPanel}>
+          <header>
+            <div>
+              <span className={styles.eyebrow}>Permanent memory</span>
+              <h2>Recently learned</h2>
+            </div>
+            <Link href="/memory">View memory</Link>
+          </header>
+          <div className={styles.learningList}>
+            {memories.length > 0 ? memories.slice(0, 5).map((memory) => (
+              <div key={memory.id}>
+                <span>{memory.domain}</span>
+                <strong>{memory.title}</strong>
+                <p>{memory.summary ?? memory.content.slice(0, 150)}</p>
+              </div>
+            )) : <p className={styles.panelEmpty}>Mission Control has not recorded new learning yet.</p>}
+          </div>
+        </article>
+
+        <article className={styles.focusPanel}>
+          <header>
+            <div>
+              <span className={styles.eyebrow}>Background activity</span>
+              <h2>Automations</h2>
+            </div>
+            <Link href="/automations">Manage</Link>
+          </header>
+          <div className={styles.automationList}>
+            {activeAutomations.length > 0 ? activeAutomations.slice(0, 5).map((automation) => (
+              <div key={automation.id}>
+                <i />
+                <span>
+                  <strong>{automation.title}</strong>
+                  <small>{automation.capability} · next {formatDate(automation.nextRun)}</small>
+                </span>
+              </div>
+            )) : <p className={styles.panelEmpty}>No automations are running.</p>}
+          </div>
+          <div className={styles.boundary}>
+            <strong>Approval boundary active</strong>
+            <p>Mission Control can think, research, and recommend. New build execution remains off.</p>
           </div>
         </article>
       </section>
