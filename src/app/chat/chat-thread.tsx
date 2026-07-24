@@ -228,7 +228,7 @@ export function ChatThread({
               : <EmptyContext>No related projects found.</EmptyContext>}
           </ContextSection>
 
-          <ContextSection title="Relevant memories" count={workspaceContext.relevantMemories.length} open>
+          <ContextSection title="Relevant memories" count={workspaceContext.relevantMemories.length}>
             {workspaceContext.relevantMemories.length > 0
               ? workspaceContext.relevantMemories.slice(0, 5).map((item) => (
                 <article className={styles.contextItem} key={item.id}>
