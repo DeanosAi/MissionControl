@@ -27,8 +27,9 @@ function displayTime(value: string | null): string {
   }).format(new Date(value));
 }
 
-function healthLabel(provider: AIProviderRecord): string {
+function healthLabel(provider: AIProviderRecord, localModelCount = 0): string {
   if (!provider.enabled) return 'Disabled';
+  if (provider.id === 'local' && localModelCount === 0) return 'Needs local model';
   if (!provider.credentialConfigured && provider.id !== 'local') return 'Needs connection';
   return provider.healthStatus === 'unknown'
     ? 'Not tested'
@@ -86,6 +87,9 @@ export function AIProvidersClient({
   if (!selected) {
     return <section className="card"><p>No AI providers are registered.</p></section>;
   }
+  const selectedConnected = selected.id === 'local'
+    ? initialLocalModels.length > 0
+    : selected.credentialConfigured;
 
   return (
     <section className={styles.page}>
@@ -130,7 +134,7 @@ export function AIProvidersClient({
                   <strong>{provider.displayName}</strong>
                   <small>
                     <i className={`${styles.healthDot} ${styles[`health_${provider.healthStatus}`]}`} />
-                    {healthLabel(provider)}
+                    {healthLabel(provider, initialLocalModels.length)}
                   </small>
                 </span>
                 <span className={styles.capabilityCount}>{provider.modelCount} models</span>
@@ -163,12 +167,12 @@ export function AIProvidersClient({
               <p>{selected.preferredUsage}</p>
             </div>
             <span className={`${styles.healthBadge} ${styles[`healthBadge_${selected.healthStatus}`]}`}>
-              {healthLabel(selected)}
+              {healthLabel(selected, initialLocalModels.length)}
             </span>
           </header>
 
           <div className={styles.factGrid}>
-            <div><span>Connection</span><strong>{selected.credentialConfigured ? 'Configured' : 'Not configured'}</strong></div>
+            <div><span>Connection</span><strong>{selectedConnected ? 'Configured' : 'Not configured'}</strong></div>
             <div><span>Credential</span><strong>{selected.credentialFingerprint ? `Encrypted · ${selected.credentialFingerprint}` : selected.credentialSource}</strong></div>
             <div><span>Last successful call</span><strong>{displayTime(selected.lastSuccessfulCallAt)}</strong></div>
             <div><span>Estimated pricing</span><strong>{selected.estimatedPricing}</strong></div>
@@ -305,7 +309,7 @@ export function AIProvidersClient({
             <button
               type="button"
               className={styles.primaryButton}
-              disabled={pending || !selected.enabled}
+              disabled={pending || !selected.enabled || (selected.id === 'local' && initialLocalModels.length === 0)}
               onClick={() => startTransition(async () => {
                 applyResult(await testProviderConnectionAction(selected.id));
               })}
