@@ -4,6 +4,7 @@ import {
   detectTaskIntent,
   parseTaskStatus,
 } from '../src/lib/task-command-intent.ts';
+import { isLegacyInvalidAssistantMessage } from '../src/lib/chat-history.ts';
 
 const cases = [
   ['create task: Review the dashboard', { type: 'create', title: 'Review the dashboard' }],
@@ -44,4 +45,13 @@ assert.equal(parseTaskStatus('In Progress'), 'in-progress');
 assert.equal(parseTaskStatus('complete'), 'done');
 assert.equal(parseTaskStatus('unknown'), null);
 
-console.log(`Chat task intent regression checks passed (${cases.length + nonCommands.length + 4} cases).`);
+assert.equal(
+  isLegacyInvalidAssistantMessage('[Claude Sonnet 4.5] 2 + 2 = 4\n\nIs there something specific you would like me to help you with in Mission Control?'),
+  true,
+);
+assert.equal(
+  isLegacyInvalidAssistantMessage('[Mission Control] The calculation is 2 + 2 = 4.'),
+  false,
+);
+
+console.log(`Chat task and history regression checks passed (${cases.length + nonCommands.length + 6} cases).`);
