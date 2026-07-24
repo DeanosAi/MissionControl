@@ -56,6 +56,7 @@ export interface CapabilityCandidate {
   pastPerformanceScore: number;
   contextWindow: number | null;
   isLocal: boolean;
+  configuredPreference: boolean;
   score: number;
   selectionReason: string;
   localEndpoint?: string;
@@ -105,6 +106,7 @@ const BUILTIN_PROFILES: Record<string, Omit<CapabilityCandidate, 'estimatedCostU
     privacyScore: 0.65,
     contextWindow: 1_050_000,
     isLocal: false,
+    configuredPreference: false,
   },
   'kimi-k2.5': {
     id: 'kimi-k2.5',
@@ -119,6 +121,7 @@ const BUILTIN_PROFILES: Record<string, Omit<CapabilityCandidate, 'estimatedCostU
     privacyScore: 0.5,
     contextWindow: 262_144,
     isLocal: false,
+    configuredPreference: false,
   },
   'claude-opus-4-6': {
     id: 'claude-opus-4-6',
@@ -133,6 +136,7 @@ const BUILTIN_PROFILES: Record<string, Omit<CapabilityCandidate, 'estimatedCostU
     privacyScore: 0.7,
     contextWindow: 200_000,
     isLocal: false,
+    configuredPreference: false,
   },
   'claude-sonnet-4-5': {
     id: 'claude-sonnet-4-5',
@@ -147,6 +151,7 @@ const BUILTIN_PROFILES: Record<string, Omit<CapabilityCandidate, 'estimatedCostU
     privacyScore: 0.7,
     contextWindow: 200_000,
     isLocal: false,
+    configuredPreference: false,
   },
 };
 
@@ -284,7 +289,10 @@ function selectionReason(candidate: CapabilityCandidate, capability: Capability)
     : candidate.estimatedCostUsd === 0
       ? 'no per-token API cost is expected'
       : `estimated cost is $${candidate.estimatedCostUsd.toFixed(4)}`;
-  return `${candidate.name} supports ${capability}; ${cost}; its value score balances quality, reliability, speed, privacy, context, and recent performance.`;
+  const preference = candidate.configuredPreference
+    ? ` It is the configured primary provider for ${capability} when available.`
+    : '';
+  return `${candidate.name} supports ${capability}; ${cost}; its value score balances quality, reliability, speed, privacy, context, and recent performance.${preference}`;
 }
 
 export async function rankCapabilityCandidates(input: {
@@ -304,6 +312,15 @@ export async function rankCapabilityCandidates(input: {
   const rowMap = new Map(rows.map((row) => [row.model_id, row]));
   const providerPriorityMap = new Map(
     providers.map((provider) => [provider.id, provider.priorityWeight / 100]),
+  );
+  const preferredProviders = new Set(
+    providers
+      .filter((provider) => {
+        const preferredCapabilities = provider.metadata.preferredCapabilities;
+        return Array.isArray(preferredCapabilities)
+          && preferredCapabilities.some((capability) => capability === input.capability);
+      })
+      .map((provider) => provider.id),
   );
 
   const hosted = Object.values(BUILTIN_PROFILES).flatMap((builtin) => {
@@ -326,6 +343,7 @@ export async function rankCapabilityCandidates(input: {
       providerPriorityScore: providerPriorityMap.get(provider) ?? 0.5,
       contextWindow: row?.context_window ?? builtin.contextWindow,
       isLocal: false,
+      configuredPreference: preferredProviders.has(provider),
     }];
   });
 
@@ -353,6 +371,7 @@ export async function rankCapabilityCandidates(input: {
     privacyScore: 1,
     contextWindow: model.contextWindow,
     isLocal: true,
+    configuredPreference: preferredProviders.has('local'),
     localEndpoint: model.endpoint,
     localModelId: model.modelId,
     providerPriorityScore: providerPriorityMap.get('local') ?? 0.9,
@@ -403,11 +422,13 @@ export async function rankCapabilityCandidates(input: {
   }));
 
   scored.sort((a, b) => b.score - a.score);
-  const affordable = scored.filter((candidate) => (
+  const preferred = scored.filter((candidate) => candidate.configuredPreference);
+  const selectionPool = preferred.length > 0 ? preferred : scored;
+  const affordable = selectionPool.filter((candidate) => (
     candidate.estimatedCostUsd !== null
     && candidate.estimatedCostUsd <= policy.costThresholdUsd
   ));
-  const selected = affordable[0] ?? scored[0];
+  const selected = affordable[0] ?? selectionPool[0];
   const requiresCostApproval = policy.requireCostApproval
     && (
       selected.estimatedCostUsd === null
@@ -433,6 +454,7 @@ export async function rankCapabilityCandidates(input: {
       'Local availability',
       'Privacy',
       'Provider priority',
+      'Configured capability preference',
     ],
   };
 }
@@ -446,6 +468,7 @@ export function serializeRoutingDecision(decision: CapabilityRoutingDecision) {
     score: Number(candidate.score.toFixed(5)),
     contextWindow: candidate.contextWindow,
     isLocal: candidate.isLocal,
+    configuredPreference: candidate.configuredPreference,
     selectionReason: candidate.selectionReason,
   });
   return {
