@@ -46,7 +46,7 @@ export function WorkspaceApprovalPanel({
 
   if (!request) {
     return (
-      <aside className={`${styles.approvalPanel} ${mobile ? styles.mobileApproval : ''}`}>
+      <aside className={`${styles.approvalPanel} ${mobile ? `${styles.mobileApproval} ${styles.mobileIdle}` : ''}`}>
         <DigitalPersona state="waiting" size="small" />
         <div>
           <span className={styles.kicker}>Approval</span>
@@ -59,7 +59,7 @@ export function WorkspaceApprovalPanel({
 
   if (request.status === 'approved' || request.status === 'rejected') {
     return (
-      <aside className={`${styles.approvalPanel} ${mobile ? styles.mobileApproval : ''}`}>
+      <aside className={`${styles.approvalPanel} ${mobile ? `${styles.mobileApproval} ${styles.mobileCompleted}` : ''}`}>
         <DigitalPersona state={request.status === 'approved' ? 'celebrating' : 'waiting'} size="small" />
         <div>
           <span className={styles.kicker}>Decision recorded</span>

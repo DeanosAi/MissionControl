@@ -140,7 +140,6 @@ export function ProposalCard({ request, memoryCount = 0 }: ProposalCardProps) {
       <DetailCard
         title="What changes"
         summary={`${proposal.whatWillBeBuilt.length} planned outcomes and their project impact.`}
-        open
       >
         <div className={styles.twoColumn}>
           <div>
