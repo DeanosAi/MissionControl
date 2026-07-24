@@ -10,6 +10,7 @@ import {
   listChatMessages,
   type ChatMessageRecord,
 } from '@/lib/chat';
+import { isLegacyInvalidAssistantMessage } from '@/lib/chat-history';
 import { detectMemoryIntent, executeMemoryCommand } from '@/lib/chat-memory';
 import { buildTaskContext, detectTaskIntent, executeTaskCommand } from '@/lib/chat-tasks';
 import { isConversationalBuildRequest } from '@/lib/conversational-bridge/intent';
@@ -174,7 +175,10 @@ export async function sendChatMessageAction(_prev: ChatFormState, formData: Form
     });
     const recentMessages = await listChatMessages();
     const conversationHistory = recentMessages
-      .filter((message) => message.role !== 'system')
+      .filter((message) => (
+        message.role !== 'system'
+        && !(message.role === 'assistant' && isLegacyInvalidAssistantMessage(message.content))
+      ))
       .slice(-10)
       .map((message) => ({
         role: message.role as 'user' | 'assistant',
