@@ -2,8 +2,8 @@ import 'server-only';
 
 import { z } from 'zod';
 
-import { isGptAvailable } from '@/lib/ai/gpt-oauth-status';
-import { AI_MODELS } from '@/lib/ai/models';
+import { listAIProviders } from '@/lib/ai-providers/repository';
+import { providerAvailabilityMap } from '@/lib/ai-providers/service';
 import { getDb } from '@/lib/db';
 import { listActiveLocalModels } from '@/lib/local-llm/client';
 
@@ -52,6 +52,7 @@ export interface CapabilityCandidate {
   reliabilityScore: number;
   qualityScore: number;
   privacyScore: number;
+  providerPriorityScore: number;
   pastPerformanceScore: number;
   contextWindow: number | null;
   isLocal: boolean;
@@ -90,7 +91,7 @@ type ProfileRow = {
 
 const DEFAULT_CAPABILITIES = capabilitySchema.options;
 
-const BUILTIN_PROFILES: Record<string, Omit<CapabilityCandidate, 'estimatedCostUsd' | 'pastPerformanceScore' | 'score' | 'selectionReason'>> = {
+const BUILTIN_PROFILES: Record<string, Omit<CapabilityCandidate, 'estimatedCostUsd' | 'pastPerformanceScore' | 'providerPriorityScore' | 'score' | 'selectionReason'>> = {
   'gpt-5.4': {
     id: 'gpt-5.4',
     name: 'GPT-5.4',
@@ -253,13 +254,11 @@ async function getPastPerformance(modelId: string, capability: Capability): Prom
 }
 
 async function providerAvailability(): Promise<Record<Exclude<CapabilityProvider, 'local'>, boolean>> {
-  const openAiApi = Boolean(process.env.OPENAI_API_KEY?.trim());
-  const openAiOauth = Boolean(process.env.OPENAI_OAUTH_ENDPOINT?.trim())
-    && await isGptAvailable().catch(() => false);
+  const availability = await providerAvailabilityMap();
   return {
-    openai: openAiApi || openAiOauth,
-    anthropic: Boolean(process.env.ANTHROPIC_API_KEY?.trim()),
-    moonshot: Boolean(process.env.MOONSHOT_API_KEY?.trim()),
+    openai: Boolean(availability.openai),
+    anthropic: Boolean(availability.anthropic),
+    moonshot: Boolean(availability.moonshot),
   };
 }
 
@@ -295,19 +294,22 @@ export async function rankCapabilityCandidates(input: {
   privacySensitive?: boolean;
   allowLocal?: boolean;
 }): Promise<CapabilityRoutingDecision> {
-  const [rows, policy, availability, localModels] = await Promise.all([
+  const [rows, policy, availability, localModels, providers] = await Promise.all([
     getRegistryRows(),
     getRoutingPolicy(),
     providerAvailability(),
     listActiveLocalModels().catch(() => []),
+    listAIProviders().catch(() => []),
   ]);
   const rowMap = new Map(rows.map((row) => [row.model_id, row]));
+  const providerPriorityMap = new Map(
+    providers.map((provider) => [provider.id, provider.priorityWeight / 100]),
+  );
 
-  const hosted = AI_MODELS.flatMap((model) => {
-    const builtin = BUILTIN_PROFILES[model.id];
-    const row = rowMap.get(model.id);
-    const provider = row && isProvider(row.provider) ? row.provider : model.provider;
-    if (!builtin || provider === 'local' || !availability[provider]) return [];
+  const hosted = Object.values(BUILTIN_PROFILES).flatMap((builtin) => {
+    const row = rowMap.get(builtin.id);
+    const provider = row && isProvider(row.provider) ? row.provider : builtin.provider;
+    if (provider === 'local' || !availability[provider]) return [];
     const capabilities = row ? parseCapabilities(row.capabilities) : builtin.capabilities;
     if (!capabilities.includes(input.capability)) return [];
     return [{
@@ -321,6 +323,7 @@ export async function rankCapabilityCandidates(input: {
       reliabilityScore: numberValue(row?.reliability_score ?? null, builtin.reliabilityScore) ?? builtin.reliabilityScore,
       qualityScore: numberValue(row?.quality_score ?? null, builtin.qualityScore) ?? builtin.qualityScore,
       privacyScore: numberValue(row?.privacy_score ?? null, builtin.privacyScore) ?? builtin.privacyScore,
+      providerPriorityScore: providerPriorityMap.get(provider) ?? 0.5,
       contextWindow: row?.context_window ?? builtin.contextWindow,
       isLocal: false,
     }];
@@ -352,6 +355,7 @@ export async function rankCapabilityCandidates(input: {
     isLocal: true,
     localEndpoint: model.endpoint,
     localModelId: model.modelId,
+    providerPriorityScore: providerPriorityMap.get('local') ?? 0.9,
   })).filter((candidate) => candidate.capabilities.includes(input.capability));
 
   const baseCandidates = [...hosted, ...local];
@@ -367,6 +371,9 @@ export async function rankCapabilityCandidates(input: {
       candidate.outputCostUsdPerMillion,
     );
     const pastPerformanceScore = await getPastPerformance(candidate.id, input.capability);
+    const providerPriorityScore = candidate.providerPriorityScore
+      ?? providerPriorityMap.get(candidate.provider)
+      ?? 0.5;
     const privacyScore = input.privacySensitive && policy.preferLocalForPrivate && candidate.isLocal
       ? 1
       : candidate.privacyScore;
@@ -382,11 +389,12 @@ export async function rankCapabilityCandidates(input: {
       + privacyScore * weights.privacy
       + pastPerformanceScore * weights.pastPerformance
     );
-    const score = rawScore * 0.92 + contextScore * 0.08;
+    const score = (rawScore * 0.95 + providerPriorityScore * 0.05) * 0.92 + contextScore * 0.08;
     const completeCandidate: CapabilityCandidate = {
       ...candidate,
       estimatedCostUsd,
       pastPerformanceScore,
+      providerPriorityScore,
       score,
       selectionReason: '',
     };
@@ -424,6 +432,7 @@ export async function rankCapabilityCandidates(input: {
       'Past performance',
       'Local availability',
       'Privacy',
+      'Provider priority',
     ],
   };
 }

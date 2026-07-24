@@ -3,43 +3,43 @@ export interface AiTeamMember {
   name: string;
   label: string;
   role: string;
-  defaultModel: string;
+  capability: string;
 }
 
 export const aiTeamMembers: AiTeamMember[] = [
   {
-    id: 'gpt-5-4',
-    name: 'GPT-5.4',
-    label: 'GPT-5.4 / Codex',
-    role: 'Primary implementation and execution lane',
-    defaultModel: 'GPT-5.4',
+    id: 'automatic',
+    name: 'Automatic',
+    label: 'Automatic / Best fit',
+    role: 'Mission Control selects the capability and provider by value',
+    capability: 'reasoning',
   },
   {
-    id: 'sonnet',
-    name: 'Sonnet',
-    label: 'Claude Sonnet 4.5',
-    role: 'Management, review, and task-keeping lane',
-    defaultModel: 'Sonnet',
+    id: 'planning',
+    name: 'Planning',
+    label: 'Planning capability',
+    role: 'Product planning, sequencing, and architecture',
+    capability: 'planning',
   },
   {
-    id: 'opus',
-    name: 'Opus',
-    label: 'Claude Opus 4.6',
-    role: 'Deep strategy and high-complexity reasoning',
-    defaultModel: 'Opus',
+    id: 'research',
+    name: 'Research',
+    label: 'Research capability',
+    role: 'Evidence gathering and technology evaluation',
+    capability: 'research',
   },
   {
-    id: 'kimi',
-    name: 'Kimi',
-    label: 'Kimi K2.5',
-    role: 'Fallback / overflow assistance',
-    defaultModel: 'Kimi',
+    id: 'coding',
+    name: 'Coding',
+    label: 'Coding capability',
+    role: 'Implementation work initiated through an approved task',
+    capability: 'coding',
   },
   {
-    id: 'scot',
-    name: 'Scot',
-    label: 'Scot',
-    role: 'Mission Control overseer and primary assistant',
-    defaultModel: 'GPT-5.4',
+    id: 'quality',
+    name: 'Quality',
+    label: 'Testing / QA capability',
+    role: 'Testing, security, and review',
+    capability: 'testing',
   },
 ];

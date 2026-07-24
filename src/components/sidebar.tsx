@@ -15,30 +15,47 @@ interface SidebarProps {
 
 function Navigation({ active, className = '' }: SidebarProps & { className?: string }) {
   const projectActive = active === 'projects';
-  return (
-    <nav className={`sidebar-nav ${className}`.trim()} aria-label="Primary">
-      {navItems.map((item) => {
-        if (item.key === 'projects') {
-          return (
-            <div key={item.key} className="sidebar-group">
-              <Link href={item.href} className={`sidebar-link ${projectActive ? 'active' : ''}`}>
-                <span>{item.label}</span>
-                {item.badge ? <span className="sidebar-badge">{item.badge}</span> : null}
-              </Link>
-              <Link href="/projects/current-tasks" className={`sidebar-link sidebar-child-link ${projectActive ? 'active' : ''}`}>
-                <span>Current Tasks</span>
-              </Link>
-            </div>
-          );
-        }
+  const groups: Array<{ label: string; keys: DashboardKey[] }> = [
+    { label: 'Command', keys: ['home', 'chat'] },
+    { label: 'Work', keys: ['projects', 'ideas', 'ai-builds', 'content'] },
+    { label: 'Intelligence', keys: ['memory', 'ai-providers', 'team', 'usage'] },
+    { label: 'Operations', keys: ['systems', 'automations', 'workflows', 'tools'] },
+  ];
 
-        return (
-          <Link key={item.key} href={item.href} className={`sidebar-link ${active === item.key ? 'active' : ''}`}>
+  function renderItem(item: (typeof navItems)[number]) {
+    if (item.key === 'projects') {
+      return (
+        <div key={item.key} className="sidebar-group">
+          <Link href={item.href} className={`sidebar-link ${projectActive ? 'active' : ''}`}>
             <span>{item.label}</span>
             {item.badge ? <span className="sidebar-badge">{item.badge}</span> : null}
           </Link>
-        );
-      })}
+          <Link href="/projects/current-tasks" className={`sidebar-link sidebar-child-link ${projectActive ? 'active' : ''}`}>
+            <span>Current Tasks</span>
+          </Link>
+        </div>
+      );
+    }
+
+    return (
+      <Link key={item.key} href={item.href} className={`sidebar-link ${active === item.key ? 'active' : ''}`}>
+        <span>{item.label}</span>
+        {item.badge ? <span className="sidebar-badge">{item.badge}</span> : null}
+      </Link>
+    );
+  }
+
+  return (
+    <nav className={`sidebar-nav ${className}`.trim()} aria-label="Primary">
+      {groups.map((group) => (
+        <section className="sidebar-nav-section" key={group.label}>
+          <span className="sidebar-nav-label">{group.label}</span>
+          {group.keys
+            .map((key) => navItems.find((item) => item.key === key))
+            .filter((item): item is (typeof navItems)[number] => Boolean(item))
+            .map(renderItem)}
+        </section>
+      ))}
     </nav>
   );
 }

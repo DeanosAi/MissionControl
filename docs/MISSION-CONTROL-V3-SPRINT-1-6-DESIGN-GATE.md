@@ -4,7 +4,13 @@
 
 Baseline: `mission-control-v3-architecture-baseline-alpha`  
 Constitution: `docs/MISSION-CONTROL-CONSTITUTION.md`, version 1.0.0  
-Status: Interactive concepts ready for review; production UI not yet replaced
+Status: Approved for production implementation on 24 July 2026
+
+## Approved direction
+
+Dean approved **Concept Two – Conversation Workspace** as the foundation, with the best daily-orientation patterns from **Concept One – Command Centre** and the persona, mobile, and future voice foundations from **Concept Three – Voice-first Assistant**.
+
+Voice capture is not part of Sprint 1.6. The shared persona states, microphone affordance, interaction contract, responsive layout, and component boundaries must nevertheless be voice-ready so a future sprint can add speech input without redesigning the workspace.
 
 ## Why this gate exists
 
@@ -120,4 +126,3 @@ This hybrid is not a fourth concept. It is Concept Two with proven supporting pa
 8. Run accessibility, mobile, migration, security, regression, and production-parity validation.
 
 No step adds autonomous code execution. Proposal approval remains a recorded decision boundary and does not execute a build.
-

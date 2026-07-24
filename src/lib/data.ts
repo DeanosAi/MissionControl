@@ -11,6 +11,7 @@ export type DashboardKey =
   | 'automations'
   | 'workflows'
   | 'memory'
+  | 'ai-providers'
   | 'local-models'
   | 'content';
 
@@ -82,7 +83,7 @@ export const navItems: NavItem[] = [
   { key: 'automations', label: 'Automations', href: '/automations' },
   { key: 'workflows', label: 'Workflows', href: '/workflows' },
   { key: 'memory', label: 'Memory / Journal', href: '/memory' },
-  { key: 'local-models', label: 'Local Models', href: '/local-models' },
+  { key: 'ai-providers', label: 'AI Providers', href: '/ai-providers', badge: 'New' },
   { key: 'content', label: 'Content', href: '/content', badge: 'Soon' },
 ];
 
@@ -264,9 +265,9 @@ export const aiBuilds: AIBuild[] = [
 
 export const tools = [
   'Mission Control VPS — self-hosted builder OS at app.missioncontroldb.online',
-  'Kimi K2.5 (Moonshot) — default chat and task execution model',
-  'Claude Sonnet 4.5 (Anthropic) — orchestration and review',
-  'Claude Opus 4.6 (Anthropic) — deep reasoning and strategy',
+  'Capability Router — selects providers by capability, value, privacy, availability, and measured outcomes',
+  'AI Providers — unified management for hosted and local model connections',
+  'Decision Engine — compares approaches and stops for approval before implementation',
   'Postgres 17 — persistent storage for tasks, journal, memory, chat, executions',
   'Docker + Caddy — containerized deployment with HTTPS',
   'Host-side usage monitor — Windows PowerShell refresh loop via SSH',

@@ -1,11 +1,8 @@
 import 'server-only';
 
 import { getDb } from '@/lib/db';
-import { generateChatCompletion as generateAnthropicCompletion } from '@/lib/ai/anthropic';
-import { getModel } from '@/lib/ai/models';
-import { generateChatCompletion as generateMoonshotCompletion } from '@/lib/ai/moonshot';
-import { generateChatCompletion as generateOpenAICompletion } from '@/lib/ai/openai';
-import { isGptAvailable } from '@/lib/ai/gpt-oauth-status';
+import { type Capability } from '@/lib/capability-registry';
+import { completeWithCapability } from '@/lib/conversational-bridge/model-router';
 import { type TaskRecord, updateTaskStatus } from '@/lib/tasks';
 import { journalTaskExecuted } from '@/lib/journal';
 
@@ -56,15 +53,19 @@ function mapExecutionRow(row: {
   };
 }
 
-/** Map a task's assignedAi label to the closest chat model ID */
-function resolveModelId(assignedAi: string | null): string {
-  if (!assignedAi) return 'gpt-5.4'; // default to GPT
-  const lower = assignedAi.toLowerCase();
-  if (lower.includes('gpt') || lower.includes('codex')) return 'gpt-5.4';
-  if (lower.includes('opus')) return 'claude-opus-4-6';
-  if (lower.includes('sonnet')) return 'claude-sonnet-4-5';
-  if (lower.includes('kimi')) return 'kimi-k2.5';
-  return 'gpt-5.4';
+/** Preserve old assignments while translating them into provider-agnostic capabilities. */
+function resolveTaskCapability(task: TaskRecord): Capability {
+  const assignment = task.assignedAi?.toLowerCase() ?? '';
+  const text = `${task.title} ${task.description} ${assignment}`.toLowerCase();
+  if (text.includes('research')) return 'research';
+  if (text.includes('test') || text.includes('qa')) return 'testing';
+  if (text.includes('security')) return 'security';
+  if (text.includes('document')) return 'documentation';
+  if (text.includes('database')) return 'database-design';
+  if (text.includes('ui') || text.includes('design')) return 'ui-design';
+  if (text.includes('code') || text.includes('build') || text.includes('codex')) return 'coding';
+  if (text.includes('plan') || text.includes('architect')) return 'planning';
+  return 'reasoning';
 }
 
 function buildTaskPrompt(task: TaskRecord): string {
@@ -128,69 +129,67 @@ async function completeExecution(
   `;
 }
 
-/** Run a task against its assigned model */
+async function assignExecutionRoute(
+  executionId: string,
+  route: { id: string; name: string; provider: string },
+): Promise<void> {
+  const sql = getDb();
+  await sql`
+    UPDATE mission_control.task_executions
+    SET model_id = ${route.id},
+        model_name = ${route.name},
+        provider = ${route.provider}
+    WHERE id = ${executionId}
+  `;
+}
+
+/** Run an explicitly initiated task through capability selection. */
 export async function executeTask(task: TaskRecord): Promise<TaskExecutionRecord> {
-  let modelId = resolveModelId(task.assignedAi);
-  let model = getModel(modelId);
-
-  if (!model) {
-    throw new Error(`Could not resolve model for assignedAi="${task.assignedAi}". Model ID "${modelId}" not found.`);
-  }
-
-  // GPT OAuth fallback: if GPT is selected but proxy is down, use fallback model
-  if (model.requiresOAuth) {
-    const gptUp = await isGptAvailable();
-    if (!gptUp && model.fallbackModelId) {
-      const fallback = getModel(model.fallbackModelId);
-      if (fallback) {
-        model = fallback;
-        modelId = fallback.id;
-      }
-    }
-  }
-
+  const capability = resolveTaskCapability(task);
   const prompt = buildTaskPrompt(task);
 
-  // Create execution record
-  const execution = await createExecution(task.id, model.id, model.name, model.provider, prompt);
+  const execution = await createExecution(
+    task.id,
+    `capability:${capability}`,
+    `Automatic ${capability} route`,
+    'automatic',
+    prompt,
+  );
 
   // Move task to in-progress
   await updateTaskStatus(task.id, 'in-progress');
 
+  let selectedRoute = {
+    id: execution.modelId,
+    name: execution.modelName,
+    provider: execution.provider,
+  };
   try {
-    const providerLabel = model.provider === 'anthropic' ? 'Anthropic' : model.provider === 'moonshot' ? 'Moonshot' : 'OpenAI';
-    const systemPrompt = `You are Scot, Mission Control's AI task execution agent. You execute tasks assigned to you by Dean through Mission Control. You are currently running as ${model.name} from ${providerLabel}. Complete the task fully and return the result.`;
-
-    const messages = [
-      { role: 'system' as const, content: systemPrompt },
-      { role: 'user' as const, content: prompt },
-    ];
-
-    let result: string;
-
     const timeoutMs = 180000; // 3 minute timeout for task execution
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error(`Task execution timed out after ${timeoutMs / 1000}s`)), timeoutMs),
     );
-
-    if (model.provider === 'openai') {
-      result = await Promise.race([
-        generateOpenAICompletion(messages, { model: model.id, maxTokens: 4000 }),
-        timeoutPromise,
-      ]);
-    } else if (model.provider === 'anthropic') {
-      result = await Promise.race([
-        generateAnthropicCompletion(messages, { model: model.id, maxTokens: 4000 }),
-        timeoutPromise,
-      ]);
-    } else if (model.provider === 'moonshot') {
-      result = await Promise.race([
-        generateMoonshotCompletion(messages, { model: model.id, maxTokens: 4000 }),
-        timeoutPromise,
-      ]);
-    } else {
-      throw new Error(`Provider "${model.provider}" is not currently available for task execution.`);
-    }
+    const completion = await Promise.race([
+      completeWithCapability(
+        capability,
+        (selection) => [
+          {
+            role: 'system',
+            content: `You are Mission Control's ${capability} capability. Complete the explicitly initiated task fully. Mission Control selected ${selection.name}, but you remain one part of Mission Control rather than a separate assistant.`,
+          },
+          { role: 'user', content: prompt },
+        ],
+        4000,
+      ),
+      timeoutPromise,
+    ]);
+    const result = completion.content;
+    selectedRoute = {
+      id: completion.selection.id,
+      name: completion.selection.name,
+      provider: completion.selection.provider,
+    };
+    await assignExecutionRoute(execution.id, selectedRoute);
 
     // Mark execution as completed
     await completeExecution(execution.id, 'completed', result, null);
@@ -199,10 +198,13 @@ export async function executeTask(task: TaskRecord): Promise<TaskExecutionRecord
     await updateTaskStatus(task.id, 'review');
 
     // Auto-journal the execution (Milestone F)
-    try { await journalTaskExecuted(task.title, model.name, true); } catch { /* non-critical */ }
+    try { await journalTaskExecuted(task.title, selectedRoute.name, true); } catch { /* non-critical */ }
 
     return {
       ...execution,
+      modelId: selectedRoute.id,
+      modelName: selectedRoute.name,
+      provider: selectedRoute.provider,
       status: 'completed',
       result,
       completedAt: new Date().toISOString(),
@@ -212,7 +214,7 @@ export async function executeTask(task: TaskRecord): Promise<TaskExecutionRecord
     await completeExecution(execution.id, 'failed', null, errorMessage);
 
     // Auto-journal the failure (Milestone F)
-    try { await journalTaskExecuted(task.title, model.name, false); } catch { /* non-critical */ }
+    try { await journalTaskExecuted(task.title, selectedRoute.name, false); } catch { /* non-critical */ }
 
     // Leave task in-progress so user can retry or inspect
     return {

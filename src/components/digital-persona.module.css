@@ -1,0 +1,137 @@
+.persona {
+  align-items: center;
+  display: inline-flex;
+  gap: 9px;
+}
+
+.visual {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 auto;
+  justify-content: center;
+  position: relative;
+}
+
+.size_small .visual {
+  height: 38px;
+  width: 38px;
+}
+
+.size_medium .visual {
+  height: 70px;
+  width: 70px;
+}
+
+.size_large .visual {
+  height: 122px;
+  width: 122px;
+}
+
+.haloOuter,
+.haloInner,
+.core {
+  border-radius: 50%;
+  position: absolute;
+}
+
+.haloOuter {
+  background: radial-gradient(circle, rgba(56, 208, 232, 0.22), rgba(42, 140, 176, 0.06) 55%, transparent 72%);
+  border: 1px solid rgba(66, 211, 233, 0.31);
+  inset: 0;
+}
+
+.haloInner {
+  border: 1px solid rgba(109, 132, 255, 0.34);
+  inset: 20%;
+}
+
+.core {
+  align-items: center;
+  background: linear-gradient(145deg, #173449, #081522);
+  border: 1px solid #48cce5;
+  box-shadow: 0 7px 20px rgba(7, 48, 68, 0.32);
+  color: #bdf5ff;
+  display: flex;
+  font-size: 0.53rem;
+  font-style: normal;
+  font-weight: 850;
+  inset: 29%;
+  justify-content: center;
+  letter-spacing: 0.05em;
+}
+
+.size_medium .core {
+  font-size: 0.65rem;
+}
+
+.size_large .core {
+  font-size: 0.8rem;
+}
+
+.copy strong,
+.copy small {
+  display: block;
+}
+
+.copy strong {
+  color: var(--foreground);
+  font-size: 0.75rem;
+}
+
+.copy small {
+  color: var(--muted);
+  font-size: 0.61rem;
+  margin-top: 2px;
+  text-transform: capitalize;
+}
+
+.state_thinking .haloOuter {
+  animation: personaOrbit 5s linear infinite;
+}
+
+.state_listening .haloOuter {
+  animation: personaPulse 1.3s ease-in-out infinite;
+  border-color: rgba(75, 223, 243, 0.82);
+}
+
+.state_celebrating .haloOuter {
+  background: radial-gradient(circle, rgba(52, 210, 157, 0.28), rgba(235, 175, 66, 0.09) 50%, transparent 72%);
+  border-color: rgba(72, 218, 171, 0.64);
+}
+
+.state_warning .haloOuter {
+  background: radial-gradient(circle, rgba(235, 166, 55, 0.27), transparent 70%);
+  border-color: rgba(235, 166, 55, 0.7);
+}
+
+.state_waiting .haloOuter {
+  opacity: 0.62;
+}
+
+.srOnly {
+  border: 0;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+@keyframes personaOrbit {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes personaPulse {
+  50% { opacity: 0.68; transform: scale(1.09); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .haloOuter {
+    animation: none !important;
+  }
+}
+

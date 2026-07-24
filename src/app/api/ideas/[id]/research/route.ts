@@ -1,6 +1,6 @@
 import { requireAdminSession } from '@/lib/auth/session';
 import { getIdea, updateIdeaStatus, appendConversation, saveResearchData, type IdeaResearchData } from '@/lib/ideas';
-import { generateChatCompletion } from '@/lib/ai/moonshot';
+import { completeWithCapability } from '@/lib/conversational-bridge/model-router';
 
 export async function POST(
   _request: Request,
@@ -27,13 +27,15 @@ The JSON must have exactly this structure:
 
 Use "high", "medium", or "low" for viability and complexity. Fill every field with real analysis.`;
 
-    const result = await generateChatCompletion(
-      [
+    const completion = await completeWithCapability(
+      'research',
+      () => [
         { role: 'system', content: 'You are a startup analyst. Respond with ONLY a raw JSON object. No markdown. No explanation. No code fences. Just the JSON.' },
         { role: 'user', content: researchPrompt },
       ],
-      { model: 'kimi-k2.5', maxTokens: 4000 },
+      4000,
     );
+    const result = completion.content;
 
     // Extract and parse JSON from the response
     const researchData = extractAndValidateResearch(result);

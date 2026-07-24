@@ -11,15 +11,17 @@ export async function POST(
 
   const { id } = await params;
 
-  let model: string;
+  let capability: string;
   try {
     const body = await request.json();
-    model = body.model;
+    capability = typeof body.capability === 'string' ? body.capability : 'coding';
   } catch {
     return Response.json({ error: 'Invalid request body' }, { status: 400 });
   }
 
-  if (!model) return Response.json({ error: 'Model is required' }, { status: 400 });
+  if (capability !== 'coding') {
+    return Response.json({ error: 'Unsupported capability' }, { status: 400 });
+  }
 
   const idea = await getIdea(id);
   if (!idea) return Response.json({ error: 'Idea not found' }, { status: 404 });
@@ -61,8 +63,8 @@ export async function POST(
       description,
       status: 'backlog',
       priority: 'high',
-      assignedAi: model,
-      notes: `Created from Ideas page. Idea ID: ${idea.id}. Full research report and conversation history available in the Ideas section.`,
+      assignedAi: 'Coding',
+      notes: `Created from Ideas page. Idea ID: ${idea.id}. Mission Control will select the best available coding provider when the user manually runs this task. Full research and conversation history remain in Ideas.`,
     });
 
     // Update idea status
@@ -72,7 +74,7 @@ export async function POST(
     try {
       await createJournalEntry({
         title: `Idea sent to build: ${idea.title}`,
-        detail: `Created task "Build: ${idea.title}" assigned to ${model}. Task is in the To Do column ready to run.`,
+        detail: `Created task "Build: ${idea.title}" for the Coding capability. Mission Control will choose a provider when the user manually runs it. The task is in To Do; no execution started.`,
         entryType: 'auto',
         source: 'ideas',
       });
@@ -82,7 +84,7 @@ export async function POST(
       success: true,
       taskId: task.id,
       taskTitle: task.title,
-      assignedAi: model,
+      assignedAi: 'Coding capability (automatic provider selection)',
     });
   } catch (err) {
     return Response.json({ error: err instanceof Error ? err.message : 'Failed to create task' }, { status: 500 });

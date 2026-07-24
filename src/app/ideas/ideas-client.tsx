@@ -207,14 +207,14 @@ function IdeaCard({ idea, expanded, onToggle, onDelete, onRefresh }: {
     setChatting(false);
   }
 
-  async function handleBuild(model: string) {
-    setBuildingWith(model);
+  async function handleBuild() {
+    setBuildingWith('coding');
     setBuildResult(null);
     try {
       const res = await fetch(`/api/ideas/${idea.id}/build`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model }),
+        body: JSON.stringify({ capability: 'coding' }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -270,32 +270,15 @@ function IdeaCard({ idea, expanded, onToggle, onDelete, onRefresh }: {
             <div style={{ marginBottom: '1rem', padding: '0.85rem', borderRadius: '14px', border: '1px solid rgba(16,185,129,0.2)', background: 'rgba(16,185,129,0.05)' }}>
               <h4 style={{ margin: '0 0 0.6rem 0', fontSize: '0.9rem' }}>🚀 Build This Idea</h4>
               <p style={{ color: 'rgba(158,179,201,1)', fontSize: '0.82rem', margin: '0 0 0.75rem 0' }}>
-                Create a fully scoped task in Current Tasks, assigned to your chosen AI. The task will include the full research report as a brief.
+                Create a fully scoped task for the Coding capability. Mission Control will choose the best available provider when you manually run it.
               </p>
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                 <button
                   className="run-task-button"
                   disabled={!!buildingWith}
-                  onClick={() => handleBuild('Kimi K2.5')}
-                  style={{ opacity: buildingWith && buildingWith !== 'Kimi K2.5' ? 0.5 : 1 }}
+                  onClick={handleBuild}
                 >
-                  {buildingWith === 'Kimi K2.5' ? '⟳ Creating...' : '🟢 Build with Kimi'}
-                </button>
-                <button
-                  className="run-task-button"
-                  disabled={!!buildingWith}
-                  onClick={() => handleBuild('Claude Sonnet 4.5')}
-                  style={{ opacity: buildingWith && buildingWith !== 'Claude Sonnet 4.5' ? 0.5 : 1 }}
-                >
-                  {buildingWith === 'Claude Sonnet 4.5' ? '⟳ Creating...' : '🔵 Build with Sonnet 4.5'}
-                </button>
-                <button
-                  className="run-task-button"
-                  disabled={!!buildingWith}
-                  onClick={() => handleBuild('Claude Opus 4.6')}
-                  style={{ opacity: buildingWith && buildingWith !== 'Claude Opus 4.6' ? 0.5 : 1 }}
-                >
-                  {buildingWith === 'Claude Opus 4.6' ? '⟳ Creating...' : '🟣 Build with Opus 4.6'}
+                  {buildingWith ? '⟳ Creating...' : 'Prepare coding task automatically'}
                 </button>
               </div>
               {buildResult && (
@@ -310,10 +293,10 @@ function IdeaCard({ idea, expanded, onToggle, onDelete, onRefresh }: {
           <div style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '0.85rem', background: 'rgba(0,0,0,0.1)', marginTop: '1rem' }}>
             <h4 style={{ margin: '0 0 0.6rem 0', fontSize: '0.9rem' }}>💬 Chat about this idea</h4>
             <div style={{ maxHeight: '250px', overflowY: 'auto', marginBottom: '0.6rem' }}>
-              {localConvo.length === 0 && <p className="micro-copy">No messages yet. Ask Kimi anything about this idea.</p>}
+              {localConvo.length === 0 && <p className="micro-copy">No messages yet. Ask Mission Control anything about this idea.</p>}
               {localConvo.map((m, i) => (
                 <div key={i} className={`chat-bubble chat-${m.role}`} style={{ marginBottom: '0.4rem', padding: '0.5rem 0.75rem', fontSize: '0.85rem' }}>
-                  <span className="micro-copy chat-role-label">{m.role === 'assistant' ? 'Kimi' : 'You'}</span>
+                  <span className="micro-copy chat-role-label">{m.role === 'assistant' ? 'Mission Control' : 'You'}</span>
                   <p>{m.content}</p>
                 </div>
               ))}

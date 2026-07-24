@@ -3,6 +3,8 @@ import 'server-only';
 import { generateChatCompletion as generateAnthropicCompletion } from '@/lib/ai/anthropic';
 import { generateChatCompletion as generateMoonshotCompletion } from '@/lib/ai/moonshot';
 import { generateChatCompletion as generateOpenAICompletion } from '@/lib/ai/openai';
+import { recordProviderCallResult } from '@/lib/ai-providers/repository';
+import { getProviderApiKey } from '@/lib/ai-providers/service';
 import {
   type Capability,
   type CapabilityProvider,
@@ -106,13 +108,16 @@ async function completeCandidate(
   maxTokens: number,
 ): Promise<string> {
   if (candidate.provider === 'anthropic') {
-    return generateAnthropicCompletion(messages, { model: candidate.id, maxTokens });
+    const apiKey = await getProviderApiKey('anthropic');
+    return generateAnthropicCompletion(messages, { apiKey: apiKey ?? undefined, model: candidate.id, maxTokens });
   }
   if (candidate.provider === 'moonshot') {
-    return generateMoonshotCompletion(messages, { model: candidate.id, maxTokens });
+    const apiKey = await getProviderApiKey('moonshot');
+    return generateMoonshotCompletion(messages, { apiKey: apiKey ?? undefined, model: candidate.id, maxTokens });
   }
   if (candidate.provider === 'openai') {
-    return generateOpenAICompletion(messages, { model: candidate.id, maxTokens });
+    const apiKey = await getProviderApiKey('openai');
+    return generateOpenAICompletion(messages, { apiKey: apiKey ?? undefined, model: candidate.id, maxTokens });
   }
   if (!candidate.localEndpoint || !candidate.localModelId) {
     throw new Error(`Local route ${candidate.name} is missing its endpoint configuration.`);
@@ -177,6 +182,7 @@ export async function completeWithCapability(
         success: true,
         latencyMs: Date.now() - startedAt,
       });
+      await recordProviderCallResult(candidate.provider, true);
       return {
         content,
         selection,
@@ -202,6 +208,7 @@ export async function completeWithCapability(
         latencyMs: Date.now() - startedAt,
         error: message,
       });
+      await recordProviderCallResult(candidate.provider, false, message);
     }
   }
 

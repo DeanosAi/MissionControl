@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 interface SystemHealth {
@@ -42,19 +43,14 @@ function StatusDot({ ok }: { ok: boolean }) {
 export function SystemHealthPanel({ initialHealth }: { initialHealth: SystemHealth }) {
   const [health, setHealth] = useState(initialHealth);
   const [refreshing, setRefreshing] = useState(false);
-  const [gptStatus, setGptStatus] = useState<{ available: boolean; error: string | null } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     async function refresh() {
       try {
-        const [healthRes, gptRes] = await Promise.all([
-          fetch('/api/health', { cache: 'no-store' }),
-          fetch('/api/gpt-status', { cache: 'no-store' }),
-        ]);
+        const healthRes = await fetch('/api/health', { cache: 'no-store' });
         if (!cancelled) {
           if (healthRes.ok) setHealth(await healthRes.json());
-          if (gptRes.ok) setGptStatus(await gptRes.json());
         }
       } catch { /* keep last data */ }
     }
@@ -66,12 +62,8 @@ export function SystemHealthPanel({ initialHealth }: { initialHealth: SystemHeal
   async function manualRefresh() {
     setRefreshing(true);
     try {
-      const [healthRes, gptRes] = await Promise.all([
-        fetch('/api/health', { cache: 'no-store' }),
-        fetch('/api/gpt-status', { cache: 'no-store' }),
-      ]);
+      const healthRes = await fetch('/api/health', { cache: 'no-store' });
       if (healthRes.ok) setHealth(await healthRes.json());
-      if (gptRes.ok) setGptStatus(await gptRes.json());
     } catch { /* keep last */ }
     setRefreshing(false);
   }
@@ -80,7 +72,6 @@ export function SystemHealthPanel({ initialHealth }: { initialHealth: SystemHeal
   const bk = health.backup;
   const app = health.app;
   const backupOk = bk.status === 'success';
-  const gptOk = gptStatus?.available ?? false;
   const lastCheck = health.checkedAt ? new Date(health.checkedAt).toLocaleTimeString() : 'unknown';
 
   return (
@@ -153,31 +144,22 @@ export function SystemHealthPanel({ initialHealth }: { initialHealth: SystemHeal
           <p className="health-stat"><span>Started</span><strong>{new Date(app.startedAt).toLocaleString()}</strong></p>
         </div>
 
-        {/* GPT OAuth */}
-        <div className={`health-card ${gptOk ? 'health-ok' : 'health-warn'}`}>
+        <div className="health-card health-ok">
           <div className="health-card-header">
-            <StatusDot ok={gptOk} />
-            <h3>GPT OAuth</h3>
+            <StatusDot ok={true} />
+            <h3>AI Providers</h3>
           </div>
           <p className="health-stat">
-            <span>Status</span>
-            <strong>{gptOk ? 'Online' : 'Offline'}</strong>
+            <span>Management</span>
+            <strong>Centralised</strong>
           </p>
           <p className="health-stat">
-            <span>Tunnel</span>
-            <strong>{gptOk ? 'Connected' : 'Not connected'}</strong>
+            <span>Routing</span>
+            <strong>Capability based</strong>
           </p>
-          {!gptOk && (
-            <p className="health-error-text">
-              {gptStatus?.error || 'Host PC offline or tunnel not running. GPT will fall back to Kimi K2.5.'}
-            </p>
-          )}
-          {gptOk && (
-            <p className="health-stat">
-              <span>Fallback</span>
-              <strong>Kimi K2.5 (when offline)</strong>
-            </p>
-          )}
+          <Link href="/ai-providers" className="move-task-button">
+            View provider health
+          </Link>
         </div>
       </div>
     </section>

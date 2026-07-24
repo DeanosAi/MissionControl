@@ -1,0 +1,466 @@
+.commandCentre,
+.focusPanel,
+.dailyPulse article {
+  border: 1px solid rgba(148, 190, 218, 0.13);
+  background: linear-gradient(165deg, rgba(13, 24, 40, 0.95), rgba(8, 16, 28, 0.98));
+  box-shadow: 0 20px 55px rgba(0, 0, 0, 0.2);
+}
+
+.commandCentre {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) minmax(300px, 0.85fr);
+  gap: 1rem 2rem;
+  align-items: center;
+  padding: 1.25rem;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(34, 211, 238, 0.11), transparent 20rem),
+    linear-gradient(165deg, rgba(12, 25, 42, 0.96), rgba(7, 15, 27, 0.98));
+}
+
+.greeting {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.eyebrow {
+  color: #72dff1;
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.greeting h2 {
+  margin-top: 0.28rem;
+  font-size: clamp(1.25rem, 2.2vw, 1.85rem);
+  line-height: 1.2;
+}
+
+.greeting p,
+.voiceNote,
+.dailyPulse p,
+.listItem p,
+.emptyState p,
+.researchLead p,
+.learningList p,
+.panelEmpty,
+.boundary p {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.greeting p {
+  margin-top: 0.4rem;
+  font-size: 0.82rem;
+}
+
+.commandBar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.65rem;
+  align-items: center;
+  min-height: 58px;
+  padding: 0.65rem 0.7rem 0.65rem 1rem;
+  border: 1px solid rgba(34, 211, 238, 0.25);
+  border-radius: 16px;
+  background: rgba(1, 8, 16, 0.75);
+  color: #dceef6;
+  transition: 160ms ease;
+}
+
+.commandBar:hover {
+  border-color: rgba(34, 211, 238, 0.55);
+  transform: translateY(-1px);
+}
+
+.commandBar small {
+  color: #8be8f6;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.commandBar i {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px dashed rgba(125, 211, 252, 0.25);
+  border-radius: 11px;
+  color: #789aab;
+  font-style: normal;
+}
+
+.voiceNote {
+  grid-column: 2;
+  font-size: 0.68rem;
+  text-align: right;
+}
+
+.dailyPulse {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.dailyPulse article {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  padding: 0.95rem;
+  border-radius: 16px;
+}
+
+.dailyPulse article[data-tone="attention"] {
+  border-color: rgba(245, 158, 11, 0.24);
+  background: linear-gradient(165deg, rgba(53, 34, 12, 0.5), rgba(11, 18, 30, 0.98));
+}
+
+.dailyPulse span {
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.dailyPulse strong {
+  overflow: hidden;
+  color: #edf8fc;
+  font-size: 1.35rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dailyPulse p {
+  overflow: hidden;
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.priorityGrid,
+.insightGrid {
+  display: grid;
+  gap: 1rem;
+}
+
+.priorityGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.insightGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.focusPanel {
+  min-width: 0;
+  padding: 1.05rem;
+  border-radius: 19px;
+}
+
+.focusPanel > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.focusPanel h2 {
+  margin-top: 0.2rem;
+  font-size: 1.05rem;
+}
+
+.focusPanel > header > a {
+  color: #8be8f6;
+  font-size: 0.7rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  white-space: nowrap;
+}
+
+.list,
+.learningList,
+.automationList {
+  display: grid;
+  gap: 0.48rem;
+}
+
+.listItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.7rem;
+  border: 1px solid rgba(255, 255, 255, 0.055);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.listItem > div {
+  min-width: 0;
+}
+
+.listItem strong {
+  display: block;
+  overflow: hidden;
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.listItem p {
+  display: -webkit-box;
+  overflow: hidden;
+  margin-top: 0.25rem;
+  font-size: 0.7rem;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+
+.listItem > span,
+.researchLead > div span,
+.learningList span {
+  display: inline-flex;
+  padding: 0.23rem 0.5rem;
+  border: 1px solid rgba(56, 189, 248, 0.16);
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.055);
+  color: #bfeafb;
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.emptyState {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  min-height: 86px;
+  padding: 0.75rem;
+  border: 1px dashed rgba(45, 212, 191, 0.18);
+  border-radius: 14px;
+}
+
+.emptyState strong {
+  font-size: 0.82rem;
+}
+
+.emptyState p {
+  margin-top: 0.2rem;
+  font-size: 0.7rem;
+}
+
+.researchLead {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.researchLead > div {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.researchLead > div span[data-recommendation="recommended"] {
+  border-color: rgba(45, 212, 191, 0.25);
+  background: rgba(45, 212, 191, 0.07);
+  color: #a7f3d0;
+}
+
+.researchLead > div span[data-recommendation="not-recommended"] {
+  border-color: rgba(251, 113, 133, 0.25);
+  background: rgba(251, 113, 133, 0.07);
+  color: #fecdd3;
+}
+
+.researchLead small {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.researchLead h3 {
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.researchLead p {
+  font-size: 0.73rem;
+}
+
+.researchLead details {
+  border-top: 1px solid rgba(255, 255, 255, 0.055);
+  padding-top: 0.65rem;
+}
+
+.researchLead summary {
+  color: #8be8f6;
+  cursor: pointer;
+  font-size: 0.7rem;
+}
+
+.researchLead details p {
+  margin-top: 0.55rem;
+}
+
+.learningList > div {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.2rem 0.55rem;
+  padding: 0.55rem 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.055);
+}
+
+.learningList > div:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.learningList span {
+  grid-row: 1 / 3;
+  align-self: start;
+}
+
+.learningList strong {
+  overflow: hidden;
+  font-size: 0.76rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.learningList p {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 0.68rem;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.automationList > div {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0;
+}
+
+.automationList i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #2dd4bf;
+  box-shadow: 0 0 10px rgba(45, 212, 191, 0.55);
+}
+
+.automationList span {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.automationList strong {
+  overflow: hidden;
+  font-size: 0.76rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.automationList small {
+  color: var(--muted);
+  font-size: 0.66rem;
+}
+
+.boundary {
+  margin-top: 0.8rem;
+  padding: 0.65rem;
+  border: 1px solid rgba(245, 158, 11, 0.16);
+  border-radius: 12px;
+  background: rgba(245, 158, 11, 0.04);
+}
+
+.boundary strong {
+  color: #fde68a;
+  font-size: 0.7rem;
+}
+
+.boundary p,
+.panelEmpty {
+  margin-top: 0.25rem;
+  font-size: 0.68rem;
+}
+
+@media (max-width: 1250px) {
+  .insightGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .insightGrid > article:last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 850px) {
+  .commandCentre {
+    grid-template-columns: 1fr;
+  }
+
+  .voiceNote {
+    grid-column: 1;
+    text-align: left;
+  }
+
+  .dailyPulse {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .priorityGrid,
+  .insightGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .insightGrid > article:last-child {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 520px) {
+  .commandCentre,
+  .focusPanel {
+    padding: 0.85rem;
+  }
+
+  .greeting {
+    align-items: flex-start;
+  }
+
+  .commandBar {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .commandBar small {
+    display: none;
+  }
+
+  .dailyPulse {
+    gap: 0.55rem;
+  }
+
+  .dailyPulse article {
+    padding: 0.75rem;
+  }
+
+  .dailyPulse strong {
+    font-size: 1.08rem;
+  }
+
+  .listItem {
+    align-items: flex-start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .commandBar {
+    transition: none;
+  }
+}

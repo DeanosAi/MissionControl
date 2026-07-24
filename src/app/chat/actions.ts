@@ -208,7 +208,7 @@ export async function sendChatMessageAction(_prev: ChatFormState, formData: Form
       : '';
     const assistantMessage = await createChatMessage(
       'assistant',
-      `[${completion.selection.name}] ${completion.content}${recoveryNote}`,
+      `[Mission Control] ${completion.content}${recoveryNote}`,
     );
     revalidatePath('/chat');
     return { message: assistantMessage };

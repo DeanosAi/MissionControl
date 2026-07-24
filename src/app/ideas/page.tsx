@@ -6,7 +6,7 @@ export default async function IdeasPage() {
     <DashboardShell
       active="ideas"
       title="Ideas"
-      subtitle="Submit ideas for AI-powered research. Kimi analyzes market fit, technical feasibility, competition, and generates estimates."
+      subtitle="Submit ideas for capability-routed research into market fit, technical feasibility, competition, and practical estimates."
     >
       <IdeasClient />
     </DashboardShell>

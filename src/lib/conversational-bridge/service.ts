@@ -12,6 +12,7 @@ import {
   markRequestCostApprovalRequired,
   markRequestFailed,
   markRequestPlanning,
+  rejectRequest,
   saveRequestProposal,
 } from '@/lib/conversational-bridge/repository';
 import type {
@@ -388,4 +389,49 @@ export async function approveConversationProposal(
     stage: 'approval',
   });
   return approved;
+}
+
+export async function rejectConversationProposal(
+  id: string,
+  note = 'The user rejected this proposal.',
+): Promise<OrchestrationRequestRecord> {
+  const request = await getOrchestrationRequest(id);
+  if (!request?.proposal) throw new Error('Proposal not found.');
+
+  const rejected = await rejectRequest(id, note);
+  const project = await getProjectById(rejected.projectId);
+  if (project?.status === 'proposal') {
+    await updateProjectStatus(rejected.projectId, 'paused');
+  }
+  await recordDecisionOutcome({
+    orchestrationRequestId: rejected.id,
+    projectId: rejected.projectId,
+    outcomeType: 'rejected',
+    revision: rejected.revision,
+    selectedOptionId: rejected.decisionAnalysis?.recommendation.optionId,
+    notes: note,
+  });
+  await rememberDecisionMemory({
+    key: `rejection-${rejected.id}-revision-${rejected.revision}`,
+    title: `Rejected: ${rejected.proposal?.title ?? rejected.projectTitle}`,
+    content: `${note}\nNo implementation started.`,
+    summary: 'User rejection recorded.',
+    projectId: rejected.projectId,
+    orchestrationRequestId: rejected.id,
+    source: 'decision-engine/rejection',
+    importance: 9,
+    metadata: {
+      revision: rejected.revision,
+      selectedOptionId: rejected.decisionAnalysis?.recommendation.optionId,
+    },
+  });
+  await writeBridgeJournal({
+    projectId: rejected.projectId,
+    requestId: rejected.id,
+    title: `Proposal rejected: ${rejected.proposal?.title ?? rejected.projectTitle}`,
+    detail: `${note}\n\nNo implementation, autonomous coding, task execution, or deployment was started.`,
+    entryType: 'decision',
+    stage: 'rejection',
+  });
+  return rejected;
 }
