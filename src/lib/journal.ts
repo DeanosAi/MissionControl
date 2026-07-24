@@ -146,14 +146,12 @@ export async function journalTaskExecuted(taskTitle: string, modelName: string, 
 
 /** Record a task status change in the journal */
 export async function journalTaskStatusChanged(taskTitle: string, oldStatus: string, newStatus: string, source: string): Promise<void> {
-  if (newStatus === 'done') {
-    await createJournalEntry({
-      title: `Task done: ${taskTitle}`,
-      detail: `Task "${taskTitle}" was marked as done (was ${oldStatus}).`,
-      entryType: 'auto',
-      source,
-    });
-  }
+  await createJournalEntry({
+    title: newStatus === 'done' ? `Task done: ${taskTitle}` : `Task status changed: ${taskTitle}`,
+    detail: `Task "${taskTitle}" moved from ${oldStatus} to ${newStatus}.`,
+    entryType: 'auto',
+    source,
+  });
 }
 
 /** Get recent journal entries for AI context (compact format) */

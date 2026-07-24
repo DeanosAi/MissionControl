@@ -3,120 +3,67 @@ import 'server-only';
 import { createTask, listTasks, getTaskById, updateTaskStatus, type TaskRecord, type CreateTaskInput, type TaskStatus } from '@/lib/tasks';
 import { executeTask } from '@/lib/task-execution';
 import { journalTaskCreated, journalTaskStatusChanged } from '@/lib/journal';
+import {
+  detectTaskIntent,
+  type TaskCommand,
+} from '@/lib/task-command-intent';
 
-/**
- * Detects whether a user message contains a task-related command intent.
- * Returns a structured command if detected, null otherwise.
- */
-export type TaskCommandType = 'create' | 'list' | 'run' | 'assign' | 'status' | 'show';
+export { detectTaskIntent };
 
-export interface TaskCommand {
-  type: TaskCommandType;
-  /** For create: title */
-  title?: string;
-  /** For create: description */
-  description?: string;
-  /** For create/assign: priority */
-  priority?: string;
-  /** For create/assign: assigned AI label */
-  assignedAi?: string;
-  /** For run/assign/status/show: task identifier (title fragment or id) */
-  taskRef?: string;
-  /** For status: new status */
-  newStatus?: string;
+interface TaskResolution {
+  task: TaskRecord | null;
+  ambiguous: TaskRecord[];
 }
 
-/** Lightweight intent detection — looks for explicit keywords without needing an LLM call */
-export function detectTaskIntent(message: string): TaskCommand | null {
-  const lower = message.toLowerCase().trim();
-
-  // --- CREATE ---
-  // "create task: <title>" or "new task: <title>" or "add task: <title>"
-  const createMatch = lower.match(/^(?:create|new|add)\s+(?:a\s+)?task[:\s]+(.+)/i);
-  if (createMatch) {
-    const rest = message.slice(message.toLowerCase().indexOf(createMatch[1].substring(0, 10)));
-    return { type: 'create', title: rest.trim() };
-  }
-
-  // --- LIST ---
-  if (/^(?:list|show|get|view)\s+(?:all\s+)?(?:tasks|my tasks|current tasks)/i.test(lower)) {
-    return { type: 'list' };
-  }
-  if (lower === 'tasks' || lower === 'my tasks' || lower === 'current tasks') {
-    return { type: 'list' };
-  }
-
-  // --- RUN ---
-  // "run task: <ref>" or "execute task: <ref>"
-  const runMatch = lower.match(/^(?:run|execute|start)\s+(?:task[:\s]+)?(.+)/i);
-  if (runMatch && !runMatch[1].match(/^(?:a\s+)?new|task[:\s]/)) {
-    return { type: 'run', taskRef: runMatch[1].trim() };
-  }
-
-  // --- STATUS ---
-  // "move task <ref> to <status>"
-  const statusMatch = lower.match(/^(?:move|set|change|update)\s+task\s+["""]?(.+?)["""]?\s+(?:to|status)\s+(.+)/i);
-  if (statusMatch) {
-    return { type: 'status', taskRef: statusMatch[1].trim(), newStatus: statusMatch[2].trim() };
-  }
-
-  // --- SHOW (single task) ---
-  // Requiring "task" prevents general questions and "show memory" from
-  // being intercepted by the task command bridge.
-  const showMatch = lower.match(/^(?:(?:show|describe)\s+(?:the\s+)?task|details?\s+(?:of|for)\s+(?:the\s+)?task|what(?:'s| is)\s+(?:the\s+)?status\s+of\s+(?:the\s+)?task)\s+["""]?(.+?)["""]?\s*\??$/i);
-  if (showMatch && showMatch[1].length > 2) {
-    return { type: 'show', taskRef: showMatch[1].trim() };
-  }
-
-  return null;
+function normalizedTaskWords(value: string): string[] {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((word) => word.length > 1);
 }
 
-/** Find a task by fuzzy title matching or exact UUID */
-async function resolveTask(ref: string): Promise<TaskRecord | null> {
+/** Find a task safely, refusing to mutate when a reference is ambiguous. */
+async function resolveTask(ref: string): Promise<TaskResolution> {
   // Try exact UUID first
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(ref)) {
-    return getTaskById(ref);
+    return { task: await getTaskById(ref), ambiguous: [] };
   }
 
-  // Fuzzy title match
   const tasks = await listTasks();
-  const lowerRef = ref.toLowerCase();
+  const lowerRef = ref.toLowerCase().trim();
 
-  // Exact title match
   const exact = tasks.find(t => t.title.toLowerCase() === lowerRef);
-  if (exact) return exact;
+  if (exact) return { task: exact, ambiguous: [] };
 
-  // Contains match
   const partial = tasks.filter(t => t.title.toLowerCase().includes(lowerRef));
-  if (partial.length === 1) return partial[0];
+  if (partial.length === 1) return { task: partial[0], ambiguous: [] };
+  if (partial.length > 1) return { task: null, ambiguous: partial.slice(0, 5) };
 
-  // Word overlap match
-  const refWords = lowerRef.split(/\s+/);
-  let bestTask: TaskRecord | null = null;
-  let bestScore = 0;
-  for (const task of tasks) {
-    const titleWords = task.title.toLowerCase().split(/\s+/);
-    const score = refWords.filter(w => titleWords.some(tw => tw.includes(w))).length;
-    if (score > bestScore && score >= Math.ceil(refWords.length * 0.5)) {
-      bestScore = score;
-      bestTask = task;
-    }
+  const refWords = normalizedTaskWords(lowerRef);
+  if (refWords.length === 0) return { task: null, ambiguous: [] };
+  const scored = tasks
+    .map((task) => {
+      const titleWords = new Set(normalizedTaskWords(task.title));
+      const overlap = refWords.filter((word) => titleWords.has(word)).length;
+      return { task, score: overlap / refWords.length };
+    })
+    .filter((candidate) => candidate.score >= 0.6)
+    .sort((a, b) => b.score - a.score);
+  if (scored.length === 0) return { task: null, ambiguous: [] };
+  const bestMatches = scored.filter((candidate) => candidate.score === scored[0].score);
+  if (bestMatches.length > 1) {
+    return { task: null, ambiguous: bestMatches.slice(0, 5).map((candidate) => candidate.task) };
   }
-
-  return bestTask;
+  return { task: scored[0].task, ambiguous: [] };
 }
 
-/** Map user-friendly status strings to TaskStatus */
-function parseStatus(s: string): TaskStatus | null {
-  const lower = s.toLowerCase().trim();
-  const map: Record<string, TaskStatus> = {
-    'backlog': 'backlog', 'to do': 'backlog', 'todo': 'backlog',
-    'in-progress': 'in-progress', 'in progress': 'in-progress', 'started': 'in-progress', 'working': 'in-progress',
-    'review': 'review', 'reviewing': 'review',
-    'done': 'done', 'complete': 'done', 'completed': 'done', 'finished': 'done',
-    'archived': 'archived', 'archive': 'archived',
-  };
-  return map[lower] ?? null;
+function unresolvedTaskResponse(ref: string, resolution: TaskResolution): string {
+  if (resolution.ambiguous.length > 0) {
+    const choices = resolution.ambiguous.map((task) => `- ${task.title}`).join('\n');
+    return `More than one task matches "${ref}". Please use a more specific title:\n${choices}`;
+  }
+  return `Could not find a task matching "${ref}". Try "list tasks" to see available tasks.`;
 }
 
 /** Format a single task record for display in chat */
@@ -193,6 +140,9 @@ export async function executeTaskCommand(cmd: TaskCommand): Promise<TaskCommandR
 
     case 'create': {
       if (!cmd.title) return { response: 'I need a title to create a task. Try: "create task: Your task title here"', mutated: false };
+      if (cmd.title.length > 200) {
+        return { response: 'That task title is too long. Keep the title under 200 characters and place extra context in the task description.', mutated: false };
+      }
 
       const input: CreateTaskInput = {
         title: cmd.title,
@@ -211,8 +161,9 @@ export async function executeTaskCommand(cmd: TaskCommand): Promise<TaskCommandR
 
     case 'run': {
       if (!cmd.taskRef) return { response: 'Which task should I run? Provide the task title or part of it.', mutated: false };
-      const task = await resolveTask(cmd.taskRef);
-      if (!task) return { response: `Could not find a task matching "${cmd.taskRef}". Try "list tasks" to see available tasks.`, mutated: false };
+      const resolution = await resolveTask(cmd.taskRef);
+      const task = resolution.task;
+      if (!task) return { response: unresolvedTaskResponse(cmd.taskRef, resolution), mutated: false };
       if (!task.assignedAi) return { response: `Task "${task.title}" has no AI assigned. Assign a model first before running.`, mutated: false };
       if (task.status === 'done' || task.status === 'archived') return { response: `Task "${task.title}" is already ${task.status}. No need to run it.`, mutated: false };
 
@@ -232,10 +183,10 @@ export async function executeTaskCommand(cmd: TaskCommand): Promise<TaskCommandR
 
     case 'status': {
       if (!cmd.taskRef || !cmd.newStatus) return { response: 'I need a task name and a status. Try: "move task <name> to <status>"', mutated: false };
-      const task = await resolveTask(cmd.taskRef);
-      if (!task) return { response: `Could not find a task matching "${cmd.taskRef}".`, mutated: false };
-      const status = parseStatus(cmd.newStatus);
-      if (!status) return { response: `"${cmd.newStatus}" is not a valid status. Valid options: to do, in progress, review, done, archived.`, mutated: false };
+      const resolution = await resolveTask(cmd.taskRef);
+      const task = resolution.task;
+      if (!task) return { response: unresolvedTaskResponse(cmd.taskRef, resolution), mutated: false };
+      const status = cmd.newStatus as TaskStatus;
       await updateTaskStatus(task.id, status);
       try { await journalTaskStatusChanged(task.title, task.status, status, 'chat'); } catch { /* non-critical */ }
       return {
@@ -246,8 +197,9 @@ export async function executeTaskCommand(cmd: TaskCommand): Promise<TaskCommandR
 
     case 'show': {
       if (!cmd.taskRef) return { response: 'Which task? Provide the title or part of it.', mutated: false };
-      const task = await resolveTask(cmd.taskRef);
-      if (!task) return { response: `Could not find a task matching "${cmd.taskRef}". Try "list tasks" to see available tasks.`, mutated: false };
+      const resolution = await resolveTask(cmd.taskRef);
+      const task = resolution.task;
+      if (!task) return { response: unresolvedTaskResponse(cmd.taskRef, resolution), mutated: false };
       return { response: formatTask(task), mutated: false };
     }
 
