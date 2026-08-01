@@ -721,6 +721,7 @@ svg {
 .product-suggestions button:last-child { border-bottom: 0; }
 .product-suggestions button:hover { background: var(--surface-2); }
 .product-suggestions button span { font-size: 0.76rem; font-weight: 750; }
+.product-suggestions button span small { display: block; margin-top: 2px; color: var(--muted); font-size: 0.66rem; font-weight: 650; }
 .product-suggestions button strong { color: var(--mint-deep); font-size: 0.74rem; }
 .estimate-hint-row { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 8px; }
 .estimate-hint-row small { color: var(--ink-faint); font-size: 0.64rem; line-height: 1.45; }

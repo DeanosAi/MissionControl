@@ -164,6 +164,18 @@ async function addShoppingItem(page, name, recurring = false, storeId = 'aldi', 
       if ((await page.locator('.shopping-total').textContent()).trim() !== '$15.45') throw new Error('Other-store item was not included in the shared total.');
     }
 
+    await addShoppingItem(pageA, 'Dragon Fruit Box', false, 'other', 8.75);
+    await pageB.locator('.shopping-row').filter({ hasText: 'Dragon Fruit Box' }).waitFor({ timeout: 5_000 });
+    await pageB.getByRole('button', { name: 'Add item', exact: true }).click();
+    await pageB.locator('#shopping-item-store').selectOption('other');
+    await pageB.locator('#shopping-name').fill('drag');
+    const learnedProduct = pageB.locator('#shopping-product-suggestions').getByRole('button').filter({ hasText: 'Dragon Fruit Box' });
+    await learnedProduct.waitFor({ timeout: 5_000 });
+    if (!(await learnedProduct.textContent()).includes('$8.75')) throw new Error('The learned product suggestion did not retain its assigned price.');
+    await learnedProduct.click();
+    if (await pageB.locator('#shopping-cost').inputValue() !== '8.75') throw new Error('Selecting the learned product did not restore its assigned price.');
+    await pageB.getByRole('button', { name: 'Close' }).click();
+
     await pageA.locator('.mobile-nav').getByText('More', { exact: true }).click();
     await pageA.getByRole('button', { name: 'Add bill' }).click();
     await pageA.locator('#bill-name').fill('Internet');
@@ -212,6 +224,7 @@ async function addShoppingItem(page, name, recurring = false, storeId = 'aldi', 
       realtimeShopping: true,
       mixedStoreItemsSynced: true,
       otherStoreItemSynced: true,
+      learnedProductSynced: true,
       predictedMilkPrice,
       correctedPriceLearnedAcrossPhones: true,
       concurrentItemsMerged: true,

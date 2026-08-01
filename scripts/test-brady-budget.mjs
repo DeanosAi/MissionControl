@@ -36,6 +36,12 @@ test('predicts store-specific grocery prices and learns household corrections', 
 
   const otherMemory = rememberShoppingPrice({}, 'other', 'Market apples', 7, '2026-08-01T00:00:00.000Z');
   assert.equal(estimateShoppingPrice('Market apples', 'other', otherMemory).price, 7);
+
+  const learnedProducts = rememberShoppingPrice(otherMemory, 'other', 'Dragon Fruit Box', 8.75, '2026-08-02T00:00:00.000Z');
+  assert.deepEqual(suggestShoppingProducts('', 'other', learnedProducts)[0], { key: 'memory:dragon fruit box', name: 'Dragon Fruit Box', price: 8.75, source: 'memory' });
+  assert.deepEqual(suggestShoppingProducts('drag', 'other', learnedProducts)[0], { key: 'memory:dragon fruit box', name: 'Dragon Fruit Box', price: 8.75, source: 'memory' });
+  assert.equal(suggestShoppingProducts('drag', 'aldi', learnedProducts).length, 0);
+  assert.equal(estimateShoppingPrice('Dragon Fruit Box', 'other', learnedProducts).product, 'Dragon Fruit Box');
 });
 
 test('merges simultaneous household shopping additions without losing either phone', () => {
@@ -119,7 +125,7 @@ test('mobile layout protects touch targets, navigation, forms, and bottom conten
   assert.doesNotMatch(app, /if \(activeView\(\) === "more"\) renderApp\(\);\s*\n\s*},\s*\n\s*}\);/);
   assert.match(styles, /\.mobile-nav \.nav-link\.active\s*\{\s*color:\s*var\(--on-mint\);\s*background:\s*var\(--mint\)/);
   assert.match(storage, /if \(remote\.status === status\) return;/);
-  assert.match(serviceWorker, /brady-budget-v6/);
+  assert.match(serviceWorker, /brady-budget-v7/);
   assert.match(serviceWorker, /\.\/js\/pricing\.js/);
 });
 

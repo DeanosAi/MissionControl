@@ -695,11 +695,13 @@ function updateShoppingLineEstimate() {
 function renderShoppingSuggestions(name) {
   const region = $("#shopping-product-suggestions");
   if (!region) return;
+  const nameInput = $("#shopping-name");
   const shopping = state.household.shopping || {};
   const storeId = selectedShoppingStoreId();
   const suggestions = suggestShoppingProducts(name, storeId, shopping.priceMemory);
   region.hidden = !suggestions.length;
-  region.innerHTML = suggestions.map((suggestion) => `<button type="button" data-action="select-shopping-suggestion" data-name="${escapeHTML(suggestion.name)}"><span>${escapeHTML(suggestion.name)}</span><strong>${groceryMoney(suggestion.price)}</strong></button>`).join("");
+  if (nameInput) nameInput.setAttribute("aria-expanded", String(Boolean(suggestions.length)));
+  region.innerHTML = suggestions.map((suggestion) => `<button type="button" data-action="select-shopping-suggestion" data-name="${escapeHTML(suggestion.name)}"><span>${escapeHTML(suggestion.name)}${suggestion.source === "memory" ? "<small>Saved product</small>" : ""}</span><strong>${groceryMoney(suggestion.price)}</strong></button>`).join("");
 }
 
 function updateShoppingEstimate({ force = false, hideSuggestions = false } = {}) {
@@ -756,7 +758,7 @@ function shoppingItemModal(item = null) {
     subtitle: "Choose a store, then type what you need for a predictive guide price.",
     body: `<form data-form="shopping-item"><input type="hidden" name="id" value="${escapeHTML(entry.id)}" /><div class="form-grid">
       <div class="field full"><label for="shopping-item-store">Store</label><select id="shopping-item-store" name="storeId">${shoppingStoreOptions(selectedStoreId)}</select><small class="field-note">Each item can come from a different store.</small></div>
-      <div class="field full predictive-field"><label for="shopping-name">Item</label><input id="shopping-name" name="name" value="${escapeHTML(entry.name)}" placeholder="Try milk, bread or eggs" role="combobox" aria-autocomplete="list" aria-controls="shopping-product-suggestions" required /><div id="shopping-product-suggestions" class="product-suggestions" role="listbox" hidden></div></div>
+      <div class="field full predictive-field"><label for="shopping-name">Item</label><input id="shopping-name" name="name" value="${escapeHTML(entry.name)}" placeholder="Try milk, bread or eggs" role="combobox" aria-autocomplete="list" aria-controls="shopping-product-suggestions" aria-expanded="false" required /><div id="shopping-product-suggestions" class="product-suggestions" role="listbox" hidden></div></div>
       <div class="field"><label for="shopping-quantity">Quantity</label><input id="shopping-quantity" name="quantity" type="number" min="1" step="1" value="${escapeHTML(entry.quantity)}" required /></div>
       <div class="field"><label for="shopping-cost">Estimated price each</label><div class="money-input"><span>$</span><input id="shopping-cost" name="estimatedCost" type="number" min="0" step="0.01" value="${escapeHTML(entry.estimatedCost)}" placeholder="Filled automatically" aria-describedby="shopping-estimate-hint" required /></div><div class="estimate-hint-row"><small id="shopping-estimate-hint">Type an item to get a ${selectedStore} estimate.</small><button class="text-button" type="button" data-action="use-shopping-estimate">Use estimate</button></div></div>
       <div class="estimate-preview full" id="shopping-line-estimate"><span>1 × ${groceryMoney(entry.estimatedCost || 0)}</span><strong>${groceryMoney(entry.estimatedCost || 0)} expected</strong></div>
@@ -1312,6 +1314,9 @@ function init() {
     if (event.target.id === "shopping-name") updateShoppingEstimate();
     if (event.target.id === "shopping-quantity") updateShoppingLineEstimate();
     if (event.target.id === "shopping-cost") markShoppingPriceManual();
+  });
+  document.addEventListener("focusin", (event) => {
+    if (event.target.id === "shopping-name") renderShoppingSuggestions(event.target.value);
   });
   $("#month-control").addEventListener("click", monthPickerModal);
   $("#profile-button").addEventListener("click", profileSwitcherModal);
