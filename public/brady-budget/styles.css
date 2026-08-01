@@ -856,6 +856,13 @@ svg {
 .segmented input { position: absolute; opacity: 0; }
 .segmented span { display: grid; min-height: 38px; place-items: center; border-radius: 9px; color: var(--ink-soft); font-size: 0.74rem; font-weight: 750; cursor: pointer; }
 .segmented input:checked + span { color: var(--ink); background: var(--surface); box-shadow: 0 2px 9px rgba(16, 42, 42, 0.08); }
+.period-segmented { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.period-segmented span { min-height: 44px; }
+.period-preview { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 14px; color: var(--ink-soft); background: var(--surface-2); border-radius: 13px; }
+.period-preview svg { width: 21px; height: 21px; flex: 0 0 auto; }
+.period-preview span { display: grid; gap: 3px; }
+.period-preview small { color: var(--ink-faint); font-size: 0.65rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+.period-preview strong { color: var(--ink); font-size: 0.8rem; }
 
 .drop-zone { display: grid; min-height: 170px; place-items: center; align-content: center; padding: 24px; text-align: center; background: var(--paper); border: 1.5px dashed #b7b5ac; border-radius: 16px; }
 .drop-zone svg { width: 28px; height: 28px; margin-bottom: 12px; color: var(--ink-soft); }
