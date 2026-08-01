@@ -47,7 +47,7 @@ export function normalisePeriodSelection(selection, fallbackMonth = monthKey()) 
 }
 
 export function periodScale(kind = "monthly") {
-  return kind === "weekly" ? 12 / 52 : kind === "fortnightly" ? 12 / 26 : 1;
+  return kind === "weekly" ? 1 / 4 : kind === "fortnightly" ? 1 / 2 : 1;
 }
 
 export function periodBounds(selection = {}) {
@@ -113,7 +113,7 @@ export function scaleMonthlyAmount(amount, kind = "monthly") {
 }
 
 export function recurringAmountForPeriod(amount, frequency = "monthly", kind = "monthly") {
-  const monthlyOccurrences = { weekly: 52 / 12, fortnightly: 26 / 12, monthly: 1, quarterly: 1 / 3, yearly: 1 / 12 };
+  const monthlyOccurrences = { weekly: 4, fortnightly: 2, monthly: 1, quarterly: 1 / 3, yearly: 1 / 12 };
   return Math.max(0, Number(amount) || 0) * (monthlyOccurrences[frequency] ?? 1) * periodScale(kind);
 }
 
@@ -141,7 +141,7 @@ export function clamp(value, min, max) {
 
 export function normalizeIncome(amount, cadence = "monthly") {
   const value = Math.max(0, Number(amount) || 0);
-  const factors = { weekly: 52 / 12, fortnightly: 26 / 12, monthly: 1, annual: 1 / 12 };
+  const factors = { weekly: 4, fortnightly: 2, monthly: 1, annual: 1 / 12 };
   return value * (factors[cadence] ?? 1);
 }
 

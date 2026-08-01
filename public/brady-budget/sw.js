@@ -1,4 +1,4 @@
-const CACHE_NAME = "brady-budget-v14";
+const CACHE_NAME = "brady-budget-v15";
 const APP_SHELL = [
   "./",
   "./index.html",

@@ -872,6 +872,8 @@ svg {
 .period-preview span { display: grid; gap: 3px; }
 .period-preview small { color: var(--ink-faint); font-size: 0.65rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
 .period-preview strong { color: var(--ink); font-size: 0.8rem; }
+.budget-convention-note { margin: 14px 0 0; font-size: 0.72rem; line-height: 1.5; }
+.plan-heading + .budget-convention-note { margin: -2px 0 18px; }
 
 .drop-zone { display: grid; min-height: 170px; place-items: center; align-content: center; padding: 24px; text-align: center; background: var(--paper); border: 1.5px dashed #b7b5ac; border-radius: 16px; }
 .drop-zone svg { width: 28px; height: 28px; margin-bottom: 12px; color: var(--ink-soft); }
