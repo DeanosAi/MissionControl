@@ -13,8 +13,8 @@ globalThis.sessionStorage = new MemoryStorage();
 globalThis.localStorage = new MemoryStorage();
 
 const { mergeBudgetStates } = await import('../public/brady-budget/js/storage.js');
-const { calculateBudget, periodBounds, periodLabel, recurringAmountForPeriod } = await import('../public/brady-budget/js/calculations.js');
-const { ensureHousehold, shoppingWeekKey } = await import('../public/brady-budget/js/profiles.js');
+const { calculateBudget, categoryAmountForPeriod, periodBounds, periodLabel, recurringAmountForPeriod } = await import('../public/brady-budget/js/calculations.js');
+const { activateProfile, ensureHousehold, shoppingWeekKey, syncActiveProfile } = await import('../public/brady-budget/js/profiles.js');
 const { baseState } = await import('../public/brady-budget/js/seed.js');
 const { estimateShoppingPrice, rememberShoppingPrice, suggestShoppingProducts } = await import('../public/brady-budget/js/pricing.js');
 
@@ -126,6 +126,38 @@ test('weekly, fortnightly, and monthly views use the correct dates and planning 
   assert.equal(Math.round(recurringAmountForPeriod(100, 'weekly', 'fortnightly')), 200);
 });
 
+test('expenditure amounts can repeat weekly, fortnightly, or monthly', () => {
+  const state = baseState();
+  state.profile.monthlyIncome = 5000;
+  state.categories = [
+    { id: 'weekly', name: 'Weekly cost', group: 'everyday', budget: 100, frequency: 'weekly', archived: false },
+    { id: 'fortnightly', name: 'Fortnightly cost', group: 'everyday', budget: 200, frequency: 'fortnightly', archived: false },
+    { id: 'monthly', name: 'Monthly cost', group: 'fixed', budget: 300, frequency: 'monthly', archived: false },
+    { id: 'legacy', name: 'Old saved cost', group: 'fixed', budget: 50, archived: false },
+  ];
+  assert.equal(categoryAmountForPeriod(state.categories[0], 'weekly'), 100);
+  assert.equal(categoryAmountForPeriod(state.categories[1], 'fortnightly'), 200);
+  assert.equal(Math.round(categoryAmountForPeriod(state.categories[2], 'weekly') * 100) / 100, 69.23);
+  assert.equal(Math.round(categoryAmountForPeriod(state.categories[3], 'monthly')), 50);
+  assert.equal(Math.round(calculateBudget(state, { kind: 'monthly', anchor: '2026-08-05' }).categoryBudget), 1217);
+  assert.equal(Math.round(calculateBudget(state, { kind: 'weekly', anchor: '2026-08-05' }).categoryBudget), 281);
+});
+
+test('custom expenditure groups stay with their individual profile', () => {
+  let state = baseState();
+  state.categoryGroups.push({ id: 'pets', label: 'Pets', note: 'Food and care', colour: '#d7f15c', custom: true });
+  state.categories.push({ id: 'pet-food', name: 'Pet food', group: 'pets', budget: 30, frequency: 'weekly' });
+  state = syncActiveProfile(state);
+  state = activateProfile(state, 'profile-primary', { syncCurrent: false });
+  assert.equal(state.categoryGroups.find((group) => group.id === 'pets').label, 'Pets');
+  assert.equal(state.categories.find((category) => category.id === 'pet-food').frequency, 'weekly');
+
+  const legacy = baseState();
+  delete legacy.household.profiles[0].categoryGroups;
+  const migrated = ensureHousehold(legacy);
+  assert.deepEqual(migrated.categoryGroups.map((group) => group.id).slice(0, 3), ['fixed', 'everyday', 'future']);
+});
+
 test('Brady Budget branding and yellow controls contain no white foreground artwork', async () => {
   const [styles, icon, index] = await Promise.all([
     readFile(new URL('../public/brady-budget/styles.css', import.meta.url), 'utf8'),
@@ -176,7 +208,15 @@ test('mobile layout protects touch targets, navigation, forms, and bottom conten
   assert.match(app, /data-action="dismiss-household-notice"/);
   assert.match(app, /aria-label="Close individual budget message"/);
   assert.match(storage, /if \(remote\.status === status\) return;/);
-  assert.match(serviceWorker, /brady-budget-v12/);
+  assert.match(serviceWorker, /brady-budget-v13/);
+  assert.match(app, /data-action="add-group"/);
+  assert.match(app, />\$\{icon\("plus"\)\} Expenditure<\/button>/);
+  assert.match(app, /id="category-frequency"/);
+  assert.match(app, /Per week/);
+  assert.match(app, /Per fortnight/);
+  assert.match(app, /Per month/);
+  assert.match(app, /data-action="delete-category"/);
+  assert.doesNotMatch(app, /data-action="archive-category"/);
 
   const manifest = JSON.parse(manifestSource);
   assert.equal(manifest.id, '/budget');

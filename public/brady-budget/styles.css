@@ -388,6 +388,8 @@ svg {
   font-size: 0.8rem;
 }
 
+.section-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+
 .text-button,
 .icon-button {
   border: 0;
@@ -653,7 +655,9 @@ svg {
 .category-group + .category-group { margin-top: 26px; }
 .group-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; padding: 0 7px; }
 .group-header h3 { margin: 0; font-size: 0.84rem; }
+.group-header small { display: block; margin-top: 3px; color: var(--ink-faint); font-size: 0.66rem; }
 .group-header span { color: var(--ink-faint); font-size: 0.7rem; }
+.empty-group { margin: 8px 0 0; padding: 18px 10px 8px; color: var(--ink-faint); border-top: 1px solid var(--line); font-size: 0.74rem; }
 
 .donut {
   --percent: 50;
@@ -995,6 +999,9 @@ svg {
   .fab[hidden] { display: none; }
   .fab svg { width: 23px; height: 23px; }
   .button.small { min-height: 44px; font-size: 0.8rem; }
+  .plan-heading { align-items: flex-start; flex-direction: column; }
+  .plan-heading .section-actions { width: 100%; justify-content: stretch; }
+  .plan-heading .section-actions .button { flex: 1 1 120px; }
   .text-button { display: inline-flex; min-width: 44px; min-height: 44px; align-items: center; justify-content: center; padding: 8px 4px; }
   .icon-button { width: 44px; height: 44px; }
   .overview-grid, .content-grid, .plan-layout, .more-grid { grid-template-columns: 1fr; }

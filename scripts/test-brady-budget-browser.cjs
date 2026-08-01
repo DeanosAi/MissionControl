@@ -157,6 +157,39 @@ async function addShoppingItem(page, name, recurring = false, storeId = 'aldi', 
     await pageA.waitForFunction(() => location.hash === '#overview');
     if (await pageA.locator('.individual-budget-notice').count()) throw new Error('The individual-budget notice did not stay dismissed on the device.');
 
+    await switchProfile(pageB, 'Dean');
+    for (const page of [pageA, pageB]) {
+      await page.locator('.mobile-nav').getByText('Plan', { exact: true }).click();
+      await page.getByRole('heading', { name: 'Give your money a job' }).waitFor();
+    }
+    await pageA.getByRole('button', { name: 'Group', exact: true }).click();
+    await pageA.locator('#group-name').fill('Pets & care');
+    await pageA.locator('#group-note').fill('Food, vet and care');
+    await pageA.getByRole('button', { name: 'Add group', exact: true }).click();
+    await pageB.getByRole('heading', { name: 'Pets & care', exact: true }).waitFor({ timeout: 5_000 });
+
+    await pageA.getByRole('button', { name: 'Expenditure', exact: true }).click();
+    await pageA.locator('#category-icon').fill('🐾');
+    await pageA.locator('#category-name').fill('Pet food');
+    await pageA.locator('#category-group').selectOption({ label: 'Pets & care' });
+    await pageA.locator('#category-budget').fill('30');
+    await pageA.locator('#category-frequency').selectOption('weekly');
+    await pageA.getByRole('button', { name: 'Save expenditure', exact: true }).click();
+    const petFoodA = pageA.getByRole('button', { name: /Pet food/ });
+    const petFoodB = pageB.getByRole('button', { name: /Pet food/ });
+    await petFoodB.waitFor({ timeout: 5_000 });
+    if (!(await petFoodB.innerText()).includes('per week')) throw new Error('Weekly expenditure did not sync to the second phone.');
+
+    await petFoodB.click();
+    await pageB.locator('#category-frequency').selectOption('fortnightly');
+    await pageB.getByRole('button', { name: 'Save expenditure', exact: true }).click();
+    await pageA.waitForFunction(() => [...document.querySelectorAll('.budget-row')].some((row) => row.textContent.includes('Pet food') && row.textContent.includes('per fortnight')));
+    await petFoodA.click();
+    await pageA.getByRole('button', { name: 'Delete', exact: true }).click();
+    await pageA.getByRole('button', { name: 'Delete', exact: true }).click();
+    await petFoodB.waitFor({ state: 'detached', timeout: 5_000 });
+    await switchProfile(pageB, 'Alex');
+
     await openShopping(pageA);
     await openShopping(pageB);
     await pageA.getByRole('button', { name: 'Set budget' }).click();
@@ -291,6 +324,9 @@ async function addShoppingItem(page, name, recurring = false, storeId = 'aldi', 
       serviceWorkerColdLaunchFixed: true,
       dismissibleBudgetNotice: true,
       appWidePeriodSelection: true,
+      customGroupsSynced: true,
+      expenditureFrequencySynced: true,
+      categoryDeletionSynced: true,
       predictedMilkPrice,
       correctedPriceLearnedAcrossPhones: true,
       concurrentItemsMerged: true,

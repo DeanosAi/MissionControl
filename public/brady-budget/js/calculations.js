@@ -117,6 +117,10 @@ export function recurringAmountForPeriod(amount, frequency = "monthly", kind = "
   return Math.max(0, Number(amount) || 0) * (monthlyOccurrences[frequency] ?? 1) * periodScale(kind);
 }
 
+export function categoryAmountForPeriod(category, kind = "monthly") {
+  return recurringAmountForPeriod(category?.budget, category?.frequency || "monthly", kind);
+}
+
 export function formatCurrency(amount, currency = "AUD", options = {}) {
   const { compact = false, maximumFractionDigits = 0 } = options;
   return new Intl.NumberFormat("en-AU", {
@@ -196,12 +200,12 @@ export function calculateBudget(state, selection = { kind: "monthly", anchor: `$
     .filter((transaction) => transaction.type === "income")
     .reduce((sum, transaction) => sum + Math.abs(Number(transaction.amount) || 0), 0);
   const expectedIncome = scaleMonthlyAmount(state.profile.monthlyIncome, period.kind);
-  const categoryBudget = categories.reduce((sum, category) => sum + scaleMonthlyAmount(Math.max(0, Number(category.budget) || 0), period.kind), 0);
+  const categoryBudget = categories.reduce((sum, category) => sum + categoryAmountForPeriod(category, period.kind), 0);
   const goalContributions = state.goals
     .filter((goal) => !goal.archived)
     .reduce((sum, goal) => sum + scaleMonthlyAmount(Math.max(0, Number(goal.monthlyContribution) || 0), period.kind), 0);
   const fixedCategories = categories.filter((category) => category.group === "fixed");
-  const fixedBudget = fixedCategories.reduce((sum, category) => sum + scaleMonthlyAmount(Math.max(0, Number(category.budget) || 0), period.kind), 0);
+  const fixedBudget = fixedCategories.reduce((sum, category) => sum + categoryAmountForPeriod(category, period.kind), 0);
   const fixedSpent = fixedCategories.reduce((sum, category) => sum + (spending[category.id] || 0), 0);
   const variableSpent = expenseTotal - fixedSpent;
   const fixedReserve = Math.max(fixedBudget, fixedSpent);
@@ -209,7 +213,7 @@ export function calculateBudget(state, selection = { kind: "monthly", anchor: `$
   const readyToAssign = expectedIncome - categoryBudget - goalContributions;
   const categoryRows = categories.map((category) => {
     const spent = spending[category.id] || 0;
-    const budget = scaleMonthlyAmount(Math.max(0, Number(category.budget) || 0), period.kind);
+    const budget = categoryAmountForPeriod(category, period.kind);
     return { ...category, spent, remaining: budget - spent, percent: budget ? (spent / budget) * 100 : spent ? 100 : 0 };
   });
   const today = new Date();

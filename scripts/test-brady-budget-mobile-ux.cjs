@@ -160,6 +160,39 @@ async function assertMobileLayout(page, label) {
     await page.locator('.mobile-nav').getByText('Plan', { exact: true }).click();
     await page.waitForFunction(() => document.querySelector('#page-title')?.textContent === 'Weekly plan');
     if ((await page.locator('#page-title').textContent()).trim() !== 'Weekly plan') fail('Plan page did not use the weekly view');
+
+    await page.getByRole('button', { name: 'Group', exact: true }).click();
+    await page.locator('#group-name').fill('Pets & care');
+    await page.locator('#group-note').fill('Food, vet and care');
+    await page.getByRole('button', { name: 'Add group', exact: true }).click();
+    await page.getByRole('heading', { name: 'Pets & care', exact: true }).waitFor();
+
+    await page.getByRole('button', { name: 'Expenditure', exact: true }).click();
+    await page.locator('#category-icon').fill('🐾');
+    await page.locator('#category-name').fill('Pet food');
+    await page.locator('#category-group').selectOption({ label: 'Pets & care' });
+    await page.locator('#category-budget').fill('30');
+    await page.locator('#category-frequency').selectOption('weekly');
+    await page.getByRole('button', { name: 'Save expenditure', exact: true }).click();
+    const petFood = page.getByRole('button', { name: /Pet food/ });
+    await petFood.waitFor();
+    if (!(await petFood.innerText()).includes('per week')) fail('Weekly expenditure frequency is not shown on the Plan row');
+
+    await petFood.click();
+    if (await page.locator('#category-budget').inputValue() !== '30') fail('Saved expenditure amount did not reopen correctly');
+    if (await page.locator('#category-frequency').inputValue() !== 'weekly') fail('Saved weekly frequency did not reopen correctly');
+    await page.locator('#category-frequency').selectOption('fortnightly');
+    await page.getByRole('button', { name: 'Save expenditure', exact: true }).click();
+    if (!(await petFood.innerText()).includes('per fortnight')) fail('Edited fortnightly frequency is not shown on the Plan row');
+
+    await petFood.click();
+    await page.getByRole('button', { name: 'Delete', exact: true }).click();
+    await page.getByRole('heading', { name: 'Delete Pet food?' }).waitFor();
+    await page.getByRole('button', { name: 'Delete', exact: true }).click();
+    await petFood.waitFor({ state: 'detached' });
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.getByRole('heading', { name: 'Pets & care', exact: true }).waitFor();
+
     await page.locator('.mobile-nav').getByText('Overview', { exact: true }).click();
     await page.getByRole('button', { name: /Choose budget period/ }).click();
     const reopenedPeriod = {
