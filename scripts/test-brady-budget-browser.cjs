@@ -168,10 +168,15 @@ async function addShoppingItem(page, name, recurring = false, storeId = 'aldi', 
     await pageA.getByRole('button', { name: 'Add group', exact: true }).click();
     await pageB.getByRole('heading', { name: 'Pets & care', exact: true }).waitFor({ timeout: 5_000 });
 
+    await pageB.getByRole('button', { name: 'Rename Pets & care', exact: true }).click();
+    await pageB.locator('#group-name').fill('Animal costs');
+    await pageB.getByRole('button', { name: 'Save group', exact: true }).click();
+    await pageA.getByRole('heading', { name: 'Animal costs', exact: true }).waitFor({ timeout: 5_000 });
+
     await pageA.getByRole('button', { name: 'Expenditure', exact: true }).click();
     await pageA.locator('#category-icon').fill('🐾');
     await pageA.locator('#category-name').fill('Pet food');
-    await pageA.locator('#category-group').selectOption({ label: 'Pets & care' });
+    await pageA.locator('#category-group').selectOption({ label: 'Animal costs' });
     await pageA.locator('#category-budget').fill('30');
     await pageA.locator('#category-frequency').selectOption('weekly');
     await pageA.getByRole('button', { name: 'Save expenditure', exact: true }).click();
@@ -188,6 +193,26 @@ async function addShoppingItem(page, name, recurring = false, storeId = 'aldi', 
     await pageA.getByRole('button', { name: 'Delete', exact: true }).click();
     await pageA.getByRole('button', { name: 'Delete', exact: true }).click();
     await petFoodB.waitFor({ state: 'detached', timeout: 5_000 });
+
+    const uncategorisedA = pageA.getByRole('button', { name: /Uncategorised/ });
+    const uncategorisedB = pageB.getByRole('button', { name: /Uncategorised/ });
+    await uncategorisedA.click();
+    await pageA.getByRole('button', { name: 'Delete', exact: true }).click();
+    await pageA.getByRole('heading', { name: 'Delete Uncategorised?' }).waitFor();
+    await pageA.getByRole('button', { name: 'Delete', exact: true }).click();
+    await uncategorisedB.waitFor({ state: 'detached', timeout: 5_000 });
+
+    const assignedAudit = await pageA.evaluate(() => {
+      const amount = (text) => Number(String(text).replace(/[^\d.-]/g, '')) || 0;
+      const assignedCard = [...document.querySelectorAll('.metric-card')]
+        .find((card) => card.querySelector('.metric-label')?.textContent.trim().startsWith('Assigned'));
+      const assigned = amount(assignedCard?.querySelector('.metric-value')?.textContent);
+      const groupTotal = [...document.querySelectorAll('.group-total')]
+        .reduce((sum, element) => sum + amount(element.textContent), 0);
+      return { assigned, groupTotal, note: assignedCard?.querySelector('.metric-note')?.textContent.trim() };
+    });
+    if (Math.abs(assignedAudit.assigned - assignedAudit.groupTotal) > 2) throw new Error(`Assigned total does not match expenditure groups: ${JSON.stringify(assignedAudit)}`);
+    if (!assignedAudit.note.includes('All planned expenses')) throw new Error('Assigned total does not explain that it contains planned expenses.');
     await switchProfile(pageB, 'Alex');
 
     await openShopping(pageA);
@@ -325,8 +350,11 @@ async function addShoppingItem(page, name, recurring = false, storeId = 'aldi', 
       dismissibleBudgetNotice: true,
       appWidePeriodSelection: true,
       customGroupsSynced: true,
+      groupRenameSynced: true,
       expenditureFrequencySynced: true,
       categoryDeletionSynced: true,
+      uncategorisedDeletionSynced: true,
+      assignedMatchesExpenditureGroups: true,
       predictedMilkPrice,
       correctedPriceLearnedAcrossPhones: true,
       concurrentItemsMerged: true,

@@ -368,15 +368,15 @@ function renderPlan() {
   const period = selectedPeriod();
   const summary = calculateBudget(state, period);
   const groups = categoryGroups();
-  const assignedPercent = summary.expectedIncome ? clamp(((summary.categoryBudget + summary.goalContributions) / summary.expectedIncome) * 100, 0, 100) : 0;
+  const assignedPercent = summary.expectedIncome ? clamp((summary.categoryBudget / summary.expectedIncome) * 100, 0, 100) : 0;
   const planEditCopy = viewPeriod.kind === "monthly"
     ? "Tap an expenditure to change its amount or how often you pay it"
     : `Showing this ${selectedPeriodName()}’s share of your plan. Tap an expenditure to change its amount or frequency.`;
   return `<section class="metrics-grid">
       ${renderMetric("Expected income", summary.expectedIncome, "↗", `${money(summary.incomeReceived)} received`)}
-      ${renderMetric("Assigned", summary.categoryBudget + summary.goalContributions, "◎", `${Math.round(assignedPercent)}% of income`)}
+      ${renderMetric("Assigned", summary.categoryBudget, "◎", `All planned expenses · ${Math.round(assignedPercent)}% of income`)}
       ${renderMetric("Spent", summary.expenseTotal, "↘", `${Math.round(summary.spentPercent)}% of income`)}
-      ${renderMetric("Ready to assign", summary.readyToAssign, "＋", summary.readyToAssign < 0 ? "Reduce category budgets" : "Unallocated money")}
+      ${renderMetric("Ready to assign", summary.readyToAssign, "＋", summary.readyToAssign < 0 ? "Reduce expenses or goal amounts" : summary.goalContributions > 0 ? `After ${money(summary.goalContributions)} for savings goals` : "Unallocated money")}
     </section>
     <section class="plan-layout">
       <div>
@@ -385,20 +385,20 @@ function renderPlan() {
           const categories = summary.categoryRows.filter((category) => category.group === group.id);
           const total = categories.reduce((sum, category) => sum + category.budget, 0);
           return `<article class="card category-group">
-            <div class="group-header"><div><h3>${escapeHTML(group.label)}</h3><small>${escapeHTML(group.note)}</small></div><span>${money(total)} assigned</span></div>
+            <div class="group-header"><div class="group-heading-copy"><div class="group-title-line"><h3>${escapeHTML(group.label)}</h3><button class="icon-button group-edit" type="button" data-action="edit-group" data-id="${escapeHTML(group.id)}" aria-label="Rename ${escapeHTML(group.label)}">${icon("edit")}</button></div><small>${escapeHTML(group.note)}</small></div><span class="group-total">${money(total)} assigned</span></div>
             <div class="budget-list">${categories.length ? categories.map((category) => `<button class="text-button budget-row" data-action="edit-category" data-id="${escapeHTML(category.id)}">${renderBudgetRowInner(category)}</button>`).join("") : `<p class="empty-group">No expenditure in this group yet.</p>`}</div>
           </article>`;
         }).join("")}
       </div>
       <aside class="card">
         <div class="section-heading"><div><h2>Plan balance</h2><p>${periodLabel(period)}</p></div></div>
-        <div class="donut" style="--percent:${assignedPercent}"><span class="donut-copy"><strong>${Math.round(assignedPercent)}%</strong><span>of income assigned</span></span></div>
+        <div class="donut" style="--percent:${assignedPercent}"><span class="donut-copy"><strong>${Math.round(assignedPercent)}%</strong><span>of income for expenses</span></span></div>
         <div class="legend">
           ${groups.map((group) => {
             const amount = summary.categoryRows.filter((category) => category.group === group.id).reduce((sum, category) => sum + category.budget, 0);
             return `<div class="legend-row"><i style="background:${safeGroupColour(group.colour)}"></i><span>${escapeHTML(group.label)}</span><strong>${money(amount)}</strong></div>`;
           }).join("")}
-          <div class="legend-row"><i style="background:var(--mint-deep)"></i><span>Savings goals</span><strong>${money(summary.goalContributions)}</strong></div>
+          <div class="legend-row"><i style="background:var(--mint-deep)"></i><span>Savings goals (separate)</span><strong>${money(summary.goalContributions)}</strong></div>
         </div>
         <div class="notice ${summary.readyToAssign < 0 ? "warning" : ""}" style="margin:20px 0 0">${icon("info")}<span>${summary.readyToAssign < 0 ? `Your plan is ${money(Math.abs(summary.readyToAssign))} over expected income.` : `${money(summary.readyToAssign)} is still ready to assign.`}</span></div>
       </aside>
@@ -409,7 +409,7 @@ function renderBudgetRowInner(category) {
   const percent = clamp(category.percent, 0, 100);
   const status = category.percent > 100 ? "over" : category.percent >= 80 ? "warn" : "";
   return `<span class="category-icon">${escapeHTML(category.icon)}</span>
-    <span class="category-name"><strong>${escapeHTML(category.name)}</strong><span>${escapeHTML(categoryGroup(category.group)?.note || `${selectedPeriodTitle()} category`)} · ${frequencyLabel(category.frequency)}</span></span>
+    <span class="category-name"><strong>${escapeHTML(category.name)}</strong><span>${escapeHTML(categoryGroup(category.group)?.note || `${selectedPeriodTitle()} category`)} · ${money(category.sourceBudget ?? category.budget)} ${frequencyLabel(category.frequency)}</span></span>
     <span class="progress-wrap"><span class="progress-bar"><span class="${status}" style="width:${percent}%"></span></span><span class="progress-label">${money(category.spent)} of ${money(category.budget)} used</span></span>
     <span class="budget-remaining"><strong class="${category.remaining < 0 ? "over" : ""}">${money(category.remaining)}</strong><span>${category.remaining < 0 ? "over" : "left"}</span></span>`;
 }
@@ -637,7 +637,7 @@ function howToGuideModal() {
     size: "guide-modal",
     body: `<div class="how-to-guide">
       <section class="guide-step"><span class="guide-number">1</span><div><h3>Add the money you get paid</h3><p>When you first start, type how much money you get and how often you get it. To change it later, tap <strong>More</strong>, find <strong>Profile &amp; preferences</strong>, then tap <strong>Edit</strong>.</p></div></section>
-      <section class="guide-step"><span class="guide-number">2</span><div><h3>Plan where your money will go</h3><p>Tap <strong>Plan</strong>. Tap an expenditure such as Food or Transport. Add the amount, choose <strong>Per week</strong>, <strong>Per fortnight</strong> or <strong>Per month</strong>, then save it.</p><ul><li>Tap <strong>+ Expenditure</strong> to add a new kind of cost.</li><li>Tap <strong>+ Group</strong> to make your own section for costs that belong together.</li><li><strong>Ready to assign</strong> is money that does not have a job yet. Keep it at $0 or higher.</li></ul></div></section>
+      <section class="guide-step"><span class="guide-number">2</span><div><h3>Plan where your money will go</h3><p>Tap <strong>Plan</strong>. Tap an expenditure such as Food or Transport. Add the amount, choose <strong>Per week</strong>, <strong>Per fortnight</strong> or <strong>Per month</strong>, then save it.</p><ul><li><strong>Assigned</strong> is the total of every planned expense for the dates you chose. Savings goals are shown separately.</li><li>Tap <strong>+ Expenditure</strong> to add a new kind of cost.</li><li>Tap <strong>+ Group</strong> to make your own section. Tap the pencil beside a group to rename it.</li><li>Open an expenditure and tap <strong>Delete</strong> if you no longer need it.</li><li><strong>Ready to assign</strong> is money that does not have a job yet. Keep it at $0 or higher.</li></ul></div></section>
       <section class="guide-step"><span class="guide-number">3</span><div><h3>Add money you get or spend</h3><p>Tap <strong>Activity</strong>, then tap <strong>Add</strong>. Choose <strong>Income</strong> when you get money. Choose <strong>Expense</strong> when you spend money. Add the name, amount, date and category, then save it.</p></div></section>
       <section class="guide-step"><span class="guide-number">4</span><div><h3>Choose the dates you want to see</h3><p>Tap the <strong>calendar</strong> at the top. Choose <strong>Weekly</strong>, <strong>Fortnightly</strong> or <strong>Monthly</strong>. Choose a date, then tap <strong>View budget</strong>. This choice is used on every budget page.</p><p>Tap <strong>Overview</strong>. <strong>Safe to spend</strong> shows money that is still free for the dates you chose. The shared shopping checklist stays on the current shopping week so both phones see the same list.</p></div></section>
       <section class="guide-step"><span class="guide-number">5</span><div><h3>Keep track of bills and saving goals</h3><p>For a bill, tap <strong>More</strong>, then <strong>Add bill</strong>. Add the amount and the date it must be paid. To save for something, tap <strong>Goals</strong>, then <strong>New goal</strong>.</p><ul><li>If the share option is shown, enter the full bill and the part you will pay. The other part is worked out for you.</li></ul></div></section>
@@ -706,22 +706,23 @@ function categoryModal(category = null) {
         <div class="field"><label for="category-budget">Amount</label><div class="money-input"><span>$</span><input id="category-budget" name="budget" type="number" min="0" step="0.01" value="${escapeHTML(item.budget)}" required /></div></div>
         <div class="field full"><label for="category-frequency">How often?</label><select id="category-frequency" name="frequency"><option value="weekly" ${(item.frequency || "monthly") === "weekly" ? "selected" : ""}>Per week</option><option value="fortnightly" ${item.frequency === "fortnightly" ? "selected" : ""}>Per fortnight</option><option value="monthly" ${(item.frequency || "monthly") === "monthly" ? "selected" : ""}>Per month</option></select><span class="hint">Brady Budget will work out the matching weekly, fortnightly or monthly total.</span></div>
       </div>
-      <div class="modal-actions">${category && category.id !== "uncategorised" ? `<button class="button danger" type="button" data-action="delete-category" data-id="${escapeHTML(category.id)}">Delete</button>` : ""}<button class="button secondary" type="button" data-action="close-modal">Cancel</button><button class="button" type="submit">Save expenditure</button></div>
+      <div class="modal-actions">${category ? `<button class="button danger" type="button" data-action="delete-category" data-id="${escapeHTML(category.id)}">Delete</button>` : ""}<button class="button secondary" type="button" data-action="close-modal">Cancel</button><button class="button" type="submit">Save expenditure</button></div>
     </form>`,
   });
 }
 
-function groupModal() {
+function groupModal(group = null) {
+  const item = group || { id: "", label: "", note: "", colour: "#d7f15c", custom: true };
   openModal({
-    title: "Add a group",
+    title: group ? "Rename group" : "Add a group",
     subtitle: "A group keeps similar expenditures together on your Plan page.",
-    body: `<form data-form="category-group">
+    body: `<form data-form="category-group"><input type="hidden" name="id" value="${escapeHTML(item.id)}" />
       <div class="form-grid">
-        <div class="field full"><label for="group-name">Group name</label><input id="group-name" name="name" maxlength="40" placeholder="Pets" required /></div>
-        <div class="field full"><label for="group-note">Short note</label><input id="group-note" name="note" maxlength="60" placeholder="Food, vet and care" /></div>
-        <div class="field full"><label for="group-colour">Group colour</label><input id="group-colour" name="colour" type="color" value="#d7f15c" /></div>
+        <div class="field full"><label for="group-name">Group name</label><input id="group-name" name="name" maxlength="40" placeholder="Pets" value="${escapeHTML(item.label)}" required /></div>
+        <div class="field full"><label for="group-note">Short note</label><input id="group-note" name="note" maxlength="60" placeholder="Food, vet and care" value="${escapeHTML(item.note)}" /></div>
+        <div class="field full"><label for="group-colour">Group colour</label><input id="group-colour" name="colour" type="color" value="${safeGroupColour(item.colour)}" /></div>
       </div>
-      <div class="modal-actions"><button class="button secondary" type="button" data-action="close-modal">Cancel</button><button class="button" type="submit">Add group</button></div>
+      <div class="modal-actions"><button class="button secondary" type="button" data-action="close-modal">Cancel</button><button class="button" type="submit">${group ? "Save group" : "Add group"}</button></div>
     </form>`,
   });
 }
@@ -1028,20 +1029,24 @@ async function handleSubmit(event) {
     return;
   }
   if (type === "category-group") {
+    const id = String(data.get("id") || "");
     const label = String(data.get("name") || "").trim();
     if (!label) return toast("Add a name for this group.", "error");
-    state.categoryGroups = [
-      ...categoryGroups(),
-      {
-        id: uid("group"),
-        label,
-        note: String(data.get("note") || "").trim() || "My spending group",
-        colour: safeGroupColour(data.get("colour")),
-        custom: true,
-      },
-    ];
+    const existing = categoryGroup(id);
+    const group = {
+      ...(existing || {}),
+      id: id || uid("group"),
+      label,
+      note: String(data.get("note") || "").trim() || "My spending group",
+      colour: safeGroupColour(data.get("colour")),
+      custom: existing?.custom ?? true,
+    };
+    state.categoryGroups = id
+      ? categoryGroups().map((item) => item.id === id ? group : item)
+      : [...categoryGroups(), group];
+    if (id) state.categories = state.categories.map((category) => category.group === id ? { ...category, colour: group.colour } : category);
     closeModal();
-    persist(`${label} group added.`);
+    persist(id ? `${label} group renamed.` : `${label} group added.`);
     return;
   }
   if (type === "category") {
@@ -1335,20 +1340,23 @@ function handleClick(event) {
   }
   else if (action === "confirm-delete-transaction") { state.transactions = state.transactions.filter((item) => item.id !== id); closeModal(); persist("Transaction deleted."); }
   else if (action === "add-group") groupModal();
+  else if (action === "edit-group") groupModal(categoryGroup(id));
   else if (action === "add-category") categoryModal();
   else if (action === "edit-category") categoryModal(categoryById(id));
   else if (action === "delete-category") {
     const category = categoryById(id);
-    if (category && category.id !== "uncategorised") confirmModal({ title: `Delete ${escapeHTML(category.name)}?`, copy: "This removes the expenditure from your Plan. Any activity or bills already using it will move to Uncategorised, so no spending records are lost.", confirmLabel: "Delete", action: "confirm-delete-category", danger: true, id });
+    if (category) confirmModal({ title: `Delete ${escapeHTML(category.name)}?`, copy: category.id === "uncategorised" ? "This removes Uncategorised from your Plan. Existing activity and bills will keep their Uncategorised label, so no records are lost." : "This removes the expenditure from your Plan. Any activity or bills already using it will move to Uncategorised, so no spending records are lost.", confirmLabel: "Delete", action: "confirm-delete-category", danger: true, id });
   }
   else if (action === "confirm-delete-category") {
     const category = categoryById(id);
-    if (category && category.id !== "uncategorised") {
+    if (category) {
       state.categories = state.categories.filter((item) => item.id !== id);
-      state.transactions = state.transactions.map((item) => item.categoryId === id ? { ...item, categoryId: "uncategorised" } : item);
-      state.bills = state.bills.map((item) => item.categoryId === id ? { ...item, categoryId: "uncategorised" } : item);
+      if (id !== "uncategorised") {
+        state.transactions = state.transactions.map((item) => item.categoryId === id ? { ...item, categoryId: "uncategorised" } : item);
+        state.bills = state.bills.map((item) => item.categoryId === id ? { ...item, categoryId: "uncategorised" } : item);
+      }
       closeModal();
-      persist(`${category.name} deleted. Linked records moved to Uncategorised.`);
+      persist(id === "uncategorised" ? "Uncategorised removed from your Plan. Existing records were kept." : `${category.name} deleted. Linked records moved to Uncategorised.`);
     }
   }
   else if (action === "add-goal") goalModal();

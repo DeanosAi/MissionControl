@@ -167,10 +167,15 @@ async function assertMobileLayout(page, label) {
     await page.getByRole('button', { name: 'Add group', exact: true }).click();
     await page.getByRole('heading', { name: 'Pets & care', exact: true }).waitFor();
 
+    await page.getByRole('button', { name: 'Rename Pets & care', exact: true }).click();
+    await page.locator('#group-name').fill('Animal costs');
+    await page.getByRole('button', { name: 'Save group', exact: true }).click();
+    await page.getByRole('heading', { name: 'Animal costs', exact: true }).waitFor();
+
     await page.getByRole('button', { name: 'Expenditure', exact: true }).click();
     await page.locator('#category-icon').fill('🐾');
     await page.locator('#category-name').fill('Pet food');
-    await page.locator('#category-group').selectOption({ label: 'Pets & care' });
+    await page.locator('#category-group').selectOption({ label: 'Animal costs' });
     await page.locator('#category-budget').fill('30');
     await page.locator('#category-frequency').selectOption('weekly');
     await page.getByRole('button', { name: 'Save expenditure', exact: true }).click();
@@ -190,8 +195,27 @@ async function assertMobileLayout(page, label) {
     await page.getByRole('heading', { name: 'Delete Pet food?' }).waitFor();
     await page.getByRole('button', { name: 'Delete', exact: true }).click();
     await petFood.waitFor({ state: 'detached' });
+
+    const uncategorised = page.getByRole('button', { name: /Uncategorised/ });
+    await uncategorised.click();
+    await page.getByRole('button', { name: 'Delete', exact: true }).click();
+    await page.getByRole('heading', { name: 'Delete Uncategorised?' }).waitFor();
+    await page.getByRole('button', { name: 'Delete', exact: true }).click();
+    await uncategorised.waitFor({ state: 'detached' });
+
+    const assignedAudit = await page.evaluate(() => {
+      const amount = (text) => Number(String(text).replace(/[^\d.-]/g, '')) || 0;
+      const assignedCard = [...document.querySelectorAll('.metric-card')]
+        .find((card) => card.querySelector('.metric-label')?.textContent.trim().startsWith('Assigned'));
+      const assigned = amount(assignedCard?.querySelector('.metric-value')?.textContent);
+      const groupTotals = [...document.querySelectorAll('.group-total')].map((element) => amount(element.textContent));
+      return { assigned, groupTotal: groupTotals.reduce((sum, value) => sum + value, 0), groups: groupTotals.length, note: assignedCard?.querySelector('.metric-note')?.textContent.trim() };
+    });
+    if (Math.abs(assignedAudit.assigned - assignedAudit.groupTotal) > 2) fail('Assigned is not the running total of all expenditure groups', assignedAudit);
+    if (!assignedAudit.note.includes('All planned expenses')) fail('Assigned total does not explain what it includes', assignedAudit);
+
     await page.reload({ waitUntil: 'networkidle' });
-    await page.getByRole('heading', { name: 'Pets & care', exact: true }).waitFor();
+    await page.getByRole('heading', { name: 'Animal costs', exact: true }).waitFor();
 
     await page.locator('.mobile-nav').getByText('Overview', { exact: true }).click();
     await page.getByRole('button', { name: /Choose budget period/ }).click();
