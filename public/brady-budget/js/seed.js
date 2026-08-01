@@ -1,19 +1,19 @@
 import { APP_VERSION, monthKey, shiftMonth, toLocalISO, uid } from "./calculations.js";
-import { createProfileRecord, PROFILE_COLOURS, shoppingWeekKey, syncActiveProfile } from "./profiles.js";
+import { createProfileRecord, DEFAULT_CATEGORY_GROUPS, PROFILE_COLOURS, shoppingWeekKey, syncActiveProfile } from "./profiles.js";
 
 export const CATEGORY_TEMPLATES = [
-  { id: "housing", name: "Housing", icon: "🏠", group: "fixed", budget: 0, colour: "#79b8be" },
-  { id: "utilities", name: "Utilities", icon: "💡", group: "fixed", budget: 0, colour: "#79b8be" },
-  { id: "subscriptions", name: "Subscriptions", icon: "📺", group: "fixed", budget: 0, colour: "#79b8be" },
-  { id: "transport", name: "Transport", icon: "🚗", group: "fixed", budget: 0, colour: "#79b8be" },
-  { id: "groceries", name: "Groceries", icon: "🛒", group: "everyday", budget: 0, colour: "#ff8f70" },
-  { id: "eating-out", name: "Eating out", icon: "🍜", group: "everyday", budget: 0, colour: "#ff8f70" },
-  { id: "shopping", name: "Shopping", icon: "🛍️", group: "everyday", budget: 0, colour: "#ff8f70" },
-  { id: "fun", name: "Fun money", icon: "🎟️", group: "everyday", budget: 0, colour: "#ff8f70" },
-  { id: "health", name: "Health", icon: "🧘", group: "future", budget: 0, colour: "#9184c8" },
-  { id: "giving", name: "Gifts & giving", icon: "🎁", group: "future", budget: 0, colour: "#9184c8" },
-  { id: "buffer", name: "Buffer", icon: "☂️", group: "future", budget: 0, colour: "#9184c8" },
-  { id: "uncategorised", name: "Uncategorised", icon: "•", group: "everyday", budget: 0, colour: "#748886" },
+  { id: "housing", name: "Housing", icon: "🏠", group: "fixed", budget: 0, frequency: "monthly", colour: "#79b8be" },
+  { id: "utilities", name: "Utilities", icon: "💡", group: "fixed", budget: 0, frequency: "monthly", colour: "#79b8be" },
+  { id: "subscriptions", name: "Subscriptions", icon: "📺", group: "fixed", budget: 0, frequency: "monthly", colour: "#79b8be" },
+  { id: "transport", name: "Transport", icon: "🚗", group: "fixed", budget: 0, frequency: "monthly", colour: "#79b8be" },
+  { id: "groceries", name: "Groceries", icon: "🛒", group: "everyday", budget: 0, frequency: "monthly", colour: "#ff8f70" },
+  { id: "eating-out", name: "Eating out", icon: "🍜", group: "everyday", budget: 0, frequency: "monthly", colour: "#ff8f70" },
+  { id: "shopping", name: "Shopping", icon: "🛍️", group: "everyday", budget: 0, frequency: "monthly", colour: "#ff8f70" },
+  { id: "fun", name: "Fun money", icon: "🎟️", group: "everyday", budget: 0, frequency: "monthly", colour: "#ff8f70" },
+  { id: "health", name: "Health", icon: "🧘", group: "future", budget: 0, frequency: "monthly", colour: "#9184c8" },
+  { id: "giving", name: "Gifts & giving", icon: "🎁", group: "future", budget: 0, frequency: "monthly", colour: "#9184c8" },
+  { id: "buffer", name: "Buffer", icon: "☂️", group: "future", budget: 0, frequency: "monthly", colour: "#9184c8" },
+  { id: "uncategorised", name: "Uncategorised", icon: "•", group: "everyday", budget: 0, frequency: "monthly", colour: "#748886" },
 ];
 
 export function baseState() {
@@ -30,6 +30,7 @@ export function baseState() {
     },
     currentMonth: monthKey(),
     categories: CATEGORY_TEMPLATES.map((category) => ({ ...category })),
+    categoryGroups: DEFAULT_CATEGORY_GROUPS.map((group) => ({ ...group })),
     transactions: [],
     bills: [],
     goals: [],

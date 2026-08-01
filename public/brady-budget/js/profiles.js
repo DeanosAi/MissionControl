@@ -2,6 +2,11 @@ import { normaliseStoreId } from "./pricing.js";
 
 export const PROFILE_LIMIT = 2;
 export const PROFILE_COLOURS = ["#d7f15c", "#ff8f70"];
+export const DEFAULT_CATEGORY_GROUPS = [
+  { id: "fixed", label: "Fixed costs", note: "Protected first", colour: "#79b8be", custom: false },
+  { id: "everyday", label: "Everyday spending", note: "Flexible spending", colour: "#ff8f70", custom: false },
+  { id: "future", label: "Future & irregular", note: "Build a buffer", colour: "#9184c8", custom: false },
+];
 
 const LIST_KEYS = ["categories", "transactions", "bills", "goals", "accounts"];
 
@@ -49,6 +54,30 @@ function cloneList(list = []) {
   return list.map((item) => ({ ...item }));
 }
 
+export function normaliseCategoryGroups(groups = [], categories = []) {
+  const supplied = Array.isArray(groups) ? groups : [];
+  const merged = DEFAULT_CATEGORY_GROUPS.map((fallback) => ({
+    ...fallback,
+    ...(supplied.find((group) => group?.id === fallback.id) || {}),
+    custom: false,
+  }));
+  for (const group of supplied) {
+    if (!group?.id || merged.some((item) => item.id === group.id)) continue;
+    merged.push({
+      id: String(group.id),
+      label: String(group.label || "My group"),
+      note: String(group.note || "My spending group"),
+      colour: String(group.colour || "#d7f15c"),
+      custom: true,
+    });
+  }
+  for (const category of Array.isArray(categories) ? categories : []) {
+    if (!category?.group || merged.some((group) => group.id === category.group)) continue;
+    merged.push({ id: category.group, label: "My group", note: "My spending group", colour: category.colour || "#d7f15c", custom: true });
+  }
+  return merged;
+}
+
 export function createProfileRecord(budgetState, options = {}) {
   const id = options.id || `profile-${Date.now()}`;
   const name = options.name || budgetState.profile?.name || "Profile";
@@ -60,6 +89,7 @@ export function createProfileRecord(budgetState, options = {}) {
     profile: { ...budgetState.profile, name },
     currentMonth: budgetState.currentMonth,
     categories: cloneList(budgetState.categories),
+    categoryGroups: cloneList(normaliseCategoryGroups(budgetState.categoryGroups, budgetState.categories)),
     transactions: cloneList(budgetState.transactions),
     bills: cloneList(budgetState.bills),
     goals: cloneList(budgetState.goals),
@@ -118,6 +148,7 @@ export function activateProfile(state, profileId, options = {}) {
     currentMonth: selected.currentMonth,
   };
   for (const key of LIST_KEYS) hydrated[key] = cloneList(selected[key]);
+  hydrated.categoryGroups = normaliseCategoryGroups(selected.categoryGroups, hydrated.categories);
   return hydrated;
 }
 
