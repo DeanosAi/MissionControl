@@ -108,6 +108,11 @@ export function normaliseShoppingItemName(name) {
     .replace(/\s+/g, " ");
 }
 
+function displayShoppingItemName(name, fallback) {
+  const displayName = String(name || "").trim().replace(/\s+/g, " ");
+  return displayName || titleCase(fallback);
+}
+
 function titleCase(value) {
   return String(value).replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
@@ -171,7 +176,7 @@ export function estimateShoppingPrice(name, storeId = "aldi", priceMemory = {}) 
   const store = normaliseStoreId(storeId);
   const remembered = priceMemory?.[store]?.[query];
   if (Number.isFinite(Number(remembered?.price)) && Number(remembered.price) >= 0) {
-    return { price: Number(remembered.price), source: "memory", key: query, description: "Your household's saved price" };
+    return { price: Number(remembered.price), source: "memory", key: query, product: displayShoppingItemName(remembered.name, query), description: "Your household's saved price" };
   }
   const guide = matchGuide(query);
   if (guide) return { price: priceForStore(guide.prices, store), source: "guide", key: guide.id, product: guide.label, description: `${storeLabel(store)} guide estimate for ${guide.label}` };
@@ -181,19 +186,22 @@ export function estimateShoppingPrice(name, storeId = "aldi", priceMemory = {}) 
 
 export function suggestShoppingProducts(name, storeId = "aldi", priceMemory = {}, limit = 4) {
   const query = normaliseShoppingItemName(name);
-  if (query.length < 2) return [];
   const store = normaliseStoreId(storeId);
   const remembered = Object.entries(priceMemory?.[store] || {}).flatMap(([key, entry]) => {
-    const score = matchScore(query, key);
-    return score ? [{ key: `memory:${key}`, name: titleCase(key), price: Number(entry.price), source: "memory", score: score + 20_000 }] : [];
+    const rememberedKey = normaliseShoppingItemName(key);
+    const recentScore = Number.isFinite(Date.parse(entry.updatedAt)) ? Date.parse(entry.updatedAt) : 0;
+    const score = query
+      ? (query.length === 1 && rememberedKey.startsWith(query) ? 300 : matchScore(query, rememberedKey))
+      : recentScore;
+    return score || !query ? [{ key: `memory:${rememberedKey}`, name: displayShoppingItemName(entry.name, rememberedKey), price: Number(entry.price), source: "memory", score: query ? score + 20_000 : score }] : [];
   });
-  const guide = PRICE_GUIDE.flatMap(([id, aliases, aldi, coles, woolworths]) => {
+  const guide = query.length < 2 ? [] : PRICE_GUIDE.flatMap(([id, aliases, aldi, coles, woolworths]) => {
     const score = Math.max(...aliases.map((alias) => matchScore(query, normaliseShoppingItemName(alias))));
     return score ? [{ key: id, name: guideLabel(id, aliases), price: priceForStore({ aldi, coles, woolworths }, store), source: "guide", score }] : [];
   });
   return [...remembered, ...guide]
     .sort((first, second) => second.score - first.score)
-    .filter((item, index, items) => items.findIndex((candidate) => candidate.name === item.name) === index)
+    .filter((item, index, items) => items.findIndex((candidate) => normaliseShoppingItemName(candidate.name) === normaliseShoppingItemName(item.name)) === index)
     .slice(0, limit)
     .map((item) => ({ key: item.key, name: item.name, price: item.price, source: item.source }));
 }
@@ -206,7 +214,7 @@ export function rememberShoppingPrice(priceMemory = {}, storeId, name, price, up
     ...priceMemory,
     [store]: {
       ...(priceMemory[store] || {}),
-      [key]: { price: Number(price), updatedAt },
+      [key]: { name: displayShoppingItemName(name, key), price: Number(price), updatedAt },
     },
   };
 }
