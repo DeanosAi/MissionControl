@@ -11,8 +11,11 @@ if (![emailA, emailB, passwordA, passwordB].every(Boolean)) {
   throw new Error('Two Brady Budget test credentials are required.');
 }
 
-async function login(page, email, password) {
-  await page.goto(`${baseUrl}/budget/login`, { waitUntil: 'networkidle' });
+async function login(page, email, password, entryPath = '/budget/login') {
+  await page.goto(`${baseUrl}${entryPath}`, { waitUntil: 'networkidle' });
+  if (entryPath === '/brady-budget/' && !page.url().includes('/budget/login')) {
+    throw new Error(`The existing Home Screen launch path opened ${page.url()} instead of the Brady Budget login.`);
+  }
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(password);
   await page.getByRole('button', { name: 'Open Brady Budget' }).click();
@@ -73,8 +76,17 @@ async function addShoppingItem(page, name, recurring = false, storeId = 'aldi', 
   }
 
   try {
-    await login(pageA, emailA, passwordA);
+    await login(pageA, emailA, passwordA, '/brady-budget/');
     await pageA.getByRole('button', { name: 'Explore sample' }).click();
+    await pageA.getByText('Safe to spend', { exact: true }).waitFor();
+
+    const manifest = await pageA.evaluate(async () => fetch('./manifest.webmanifest', { cache: 'no-store' }).then((response) => response.json()));
+    if (manifest.start_url !== '/budget' || manifest.scope !== '/') throw new Error(`The Home Screen manifest is not using the stable launch route: ${JSON.stringify(manifest)}`);
+    await pageA.goto(`${baseUrl}/budget`, { waitUntil: 'domcontentloaded' });
+    await pageA.waitForURL('**/brady-budget/index.html**');
+    await pageA.locator('body:not(.auth-pending)').waitFor({ timeout: 15_000 });
+    const reopenedWelcome = pageA.getByRole('button', { name: 'Explore sample' });
+    if (await reopenedWelcome.isVisible()) await reopenedWelcome.click();
     await pageA.getByText('Safe to spend', { exact: true }).waitFor();
 
     await pageA.getByRole('button', { name: 'How to use Brady Budget' }).click();
@@ -232,6 +244,7 @@ async function addShoppingItem(page, name, recurring = false, storeId = 'aldi', 
       otherStoreItemSynced: true,
       learnedProductSynced: true,
       simpleHowToGuide: true,
+      homeScreenLaunchFixed: true,
       predictedMilkPrice,
       correctedPriceLearnedAcrossPhones: true,
       concurrentItemsMerged: true,
