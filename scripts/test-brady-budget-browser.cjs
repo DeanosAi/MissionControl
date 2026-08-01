@@ -39,8 +39,9 @@ async function openShopping(page) {
   await page.getByText('Shared grocery plan', { exact: true }).waitFor();
 }
 
-async function addShoppingItem(page, name, recurring = false, manualCost = null) {
+async function addShoppingItem(page, name, recurring = false, storeId = 'aldi', manualCost = null) {
   await page.getByRole('button', { name: 'Add item', exact: true }).click();
+  await page.locator('#shopping-item-store').selectOption(storeId);
   await page.locator('#shopping-name').fill(name);
   await page.locator('#shopping-quantity').fill('1');
   await page.waitForFunction(() => Number(document.querySelector('#shopping-cost')?.value) > 0);
@@ -97,11 +98,6 @@ async function addShoppingItem(page, name, recurring = false, manualCost = null)
 
     await openShopping(pageA);
     await openShopping(pageB);
-    if (await pageA.locator('#shopping-store').inputValue() !== 'aldi') throw new Error('New household did not default to ALDI.');
-    await pageA.locator('#shopping-store').selectOption('coles');
-    await pageB.waitForFunction(() => document.querySelector('#shopping-store')?.value === 'coles');
-    await pageA.locator('#shopping-store').selectOption('aldi');
-    await pageB.waitForFunction(() => document.querySelector('#shopping-store')?.value === 'aldi');
     await pageA.getByRole('button', { name: 'Set budget' }).click();
     await pageA.locator('#shopping-budget').fill('200');
     await pageA.getByRole('button', { name: 'Save budget' }).click();
@@ -115,7 +111,7 @@ async function addShoppingItem(page, name, recurring = false, manualCost = null)
         return false;
       }
     });
-    const predictedMilkPrice = await addShoppingItem(pageA, 'Milk', true);
+    const predictedMilkPrice = await addShoppingItem(pageA, 'Milk', true, 'aldi');
     if (predictedMilkPrice !== '3.55') throw new Error(`ALDI milk prediction was ${predictedMilkPrice}, not 3.55.`);
     const saveResponse = await saveResponsePromise;
     console.log(`Shopping save returned HTTP ${saveResponse.status()}.`);
@@ -141,6 +137,7 @@ async function addShoppingItem(page, name, recurring = false, manualCost = null)
     await pageB.locator('#modal-root').getByRole('button', { name: 'Save item' }).click();
     await pageA.locator('.shopping-row').filter({ hasText: 'ALDI saved price' }).waitFor({ timeout: 5_000 });
     await pageA.getByRole('button', { name: 'Add item', exact: true }).click();
+    await pageA.locator('#shopping-item-store').selectOption('aldi');
     await pageA.locator('#shopping-name').fill('Milk');
     if (await pageA.locator('#shopping-cost').inputValue() !== '3.45') throw new Error('Corrected ALDI milk price was not learned across phones.');
     await pageA.getByRole('button', { name: 'Close' }).click();
@@ -149,12 +146,15 @@ async function addShoppingItem(page, name, recurring = false, manualCost = null)
     await pageA.locator('.shopping-row.checked').filter({ hasText: 'Milk' }).waitFor({ timeout: 5_000 });
 
     await Promise.all([
-      addShoppingItem(pageA, 'Bread'),
-      addShoppingItem(pageB, 'Eggs'),
+      addShoppingItem(pageA, 'Bread', false, 'coles'),
+      addShoppingItem(pageB, 'Eggs', false, 'woolworths'),
     ]);
     for (const page of [pageA, pageB]) {
       await page.getByText('Bread', { exact: true }).waitFor({ timeout: 8_000 });
       await page.getByText('Eggs', { exact: true }).waitFor({ timeout: 8_000 });
+      await page.locator('.shopping-row').filter({ hasText: 'Bread' }).filter({ hasText: 'Coles estimate' }).waitFor();
+      await page.locator('.shopping-row').filter({ hasText: 'Eggs' }).filter({ hasText: 'Woolworths estimate' }).waitFor();
+      if ((await page.locator('.shopping-total').textContent()).trim() !== '$12.25') throw new Error('Mixed-store expected total is incorrect.');
     }
 
     await pageA.locator('.mobile-nav').getByText('More', { exact: true }).click();
@@ -203,7 +203,7 @@ async function addShoppingItem(page, name, recurring = false, manualCost = null)
     console.log(JSON.stringify({
       profilesIndependent: true,
       realtimeShopping: true,
-      storeSelectionSynced: true,
+      mixedStoreItemsSynced: true,
       predictedMilkPrice,
       correctedPriceLearnedAcrossPhones: true,
       concurrentItemsMerged: true,

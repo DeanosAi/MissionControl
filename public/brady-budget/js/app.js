@@ -394,10 +394,14 @@ function renderGoalCard(goal) {
 function renderShopping() {
   const shopping = state.household.shopping || { budget: 0, items: [] };
   const items = shopping.items || [];
-  const storeId = normaliseStoreId(shopping.storeId);
-  const selectedStore = storeLabel(storeId);
   const shoppingTotals = calculateShoppingList(items, shopping.budget);
   const { estimatedTotal, remaining, percent } = shoppingTotals;
+  const storeTotals = SHOPPING_STORES.map((store) => ({
+    ...store,
+    total: items
+      .filter((item) => normaliseStoreId(item.storeId) === store.id)
+      .reduce((sum, item) => sum + (Math.max(1, Number(item.quantity) || 1) * Math.max(0, Number(item.estimatedCost) || 0)), 0),
+  })).filter((store) => store.total > 0);
   const openItems = items.filter((item) => !item.checked);
   const checkedItems = items.filter((item) => item.checked);
   const recurringItems = items.filter((item) => item.recurring);
@@ -406,12 +410,10 @@ function renderShopping() {
       <div class="shopping-summary-copy">
         <p class="hero-label"><span class="dot"></span> Shared grocery plan</p>
         <div class="shopping-total">${groceryMoney(estimatedTotal)}</div>
-        <p>${items.length} item${items.length === 1 ? "" : "s"} estimated for ${selectedStore} · ${money(remaining)} ${remaining < 0 ? "over" : "left in"} the ${money(shopping.budget)} grocery budget · week of ${weekLabel}</p>
+        <p>${items.length} item${items.length === 1 ? "" : "s"} across ${storeTotals.length || 0} store${storeTotals.length === 1 ? "" : "s"} · ${money(remaining)} ${remaining < 0 ? "over" : "left in"} the ${money(shopping.budget)} grocery budget · week of ${weekLabel}</p>
+        ${storeTotals.length ? `<div class="shopping-store-breakdown">${storeTotals.map((store) => `<span>${store.label}<strong>${groceryMoney(store.total)}</strong></span>`).join("")}</div>` : ""}
       </div>
-      <div class="shopping-summary-actions">
-        <label class="shopping-store-control" for="shopping-store"><span>Shopping at</span><select id="shopping-store">${shoppingStoreOptions(storeId)}</select><small>Guide prices only</small></label>
-        <div class="shopping-action-buttons"><button class="button secondary" data-action="set-shopping-budget">Set budget</button><button class="button accent" data-action="add-shopping-item">${icon("plus")} Add item</button></div>
-      </div>
+      <div class="shopping-summary-actions"><button class="button secondary" data-action="set-shopping-budget">Set budget</button><button class="button accent" data-action="add-shopping-item">${icon("plus")} Add item</button></div>
       <div class="shopping-budget-track"><span class="${remaining < 0 ? "over" : ""}" style="width:${percent}%"></span></div>
     </section>
     <div class="notice">${icon("info")}<span>Tick items off as you find them. This household list updates live on both phones${recurringItems.length ? ` and resets ${recurringItems.length} weekly item${recurringItems.length === 1 ? "" : "s"} every Monday` : ""}.</span></div>
@@ -478,7 +480,7 @@ function renderMore() {
         <p>Brady Budget combines envelope planning with a simple safe-to-spend number. Household data is stored on your private Mission Control server and synced between signed-in phones.</p>
         <p><strong style="color:white">Important:</strong> this is a planning tool, not financial advice. Keep regular backups for an additional copy of your data.</p>
         ${deferredInstallPrompt ? `<button class="button accent block" data-action="install-app" style="margin-top:12px">Install Brady Budget</button>` : ""}
-        <div class="about-version">Version 3.1 · Predictive shopping prices</div>
+        <div class="about-version">Version 3.2 · Mixed-store shopping</div>
       </article>
     </aside>
   </section>`;
@@ -678,6 +680,10 @@ function shoppingStoreOptions(selected = "aldi") {
   return SHOPPING_STORES.map((store) => `<option value="${store.id}" ${store.id === selected ? "selected" : ""}>${store.label}</option>`).join("");
 }
 
+function selectedShoppingStoreId() {
+  return normaliseStoreId($("#shopping-item-store")?.value || state.household.shopping?.storeId);
+}
+
 function updateShoppingLineEstimate() {
   const preview = $("#shopping-line-estimate");
   if (!preview) return;
@@ -690,7 +696,7 @@ function renderShoppingSuggestions(name) {
   const region = $("#shopping-product-suggestions");
   if (!region) return;
   const shopping = state.household.shopping || {};
-  const storeId = normaliseStoreId(shopping.storeId);
+  const storeId = selectedShoppingStoreId();
   const suggestions = suggestShoppingProducts(name, storeId, shopping.priceMemory);
   region.hidden = !suggestions.length;
   region.innerHTML = suggestions.map((suggestion) => `<button type="button" data-action="select-shopping-suggestion" data-name="${escapeHTML(suggestion.name)}"><span>${escapeHTML(suggestion.name)}</span><strong>${groceryMoney(suggestion.price)}</strong></button>`).join("");
@@ -702,7 +708,7 @@ function updateShoppingEstimate({ force = false, hideSuggestions = false } = {})
   const hint = $("#shopping-estimate-hint");
   if (!nameInput || !priceInput || !hint) return;
   const shopping = state.household.shopping || {};
-  const storeId = normaliseStoreId(shopping.storeId);
+  const storeId = selectedShoppingStoreId();
   if (!hideSuggestions) renderShoppingSuggestions(nameInput.value);
   else if ($("#shopping-product-suggestions")) $("#shopping-product-suggestions").hidden = true;
 
@@ -729,19 +735,8 @@ function markShoppingPriceManual() {
   const hint = $("#shopping-estimate-hint");
   if (!priceInput || !hint) return;
   priceInput.dataset.priceSource = "manual";
-  hint.textContent = `Your ${storeLabel(state.household.shopping?.storeId)} price — saved for next time.`;
+  hint.textContent = `Your ${storeLabel(selectedShoppingStoreId())} price — saved for next time.`;
   updateShoppingLineEstimate();
-}
-
-function changeShoppingStore(nextStoreId) {
-  const shopping = state.household.shopping || { budget: 0, items: [] };
-  const storeId = normaliseStoreId(nextStoreId);
-  const items = (shopping.items || []).map((item) => {
-    const estimate = estimateShoppingPrice(item.name, storeId, shopping.priceMemory);
-    return estimate ? { ...item, storeId, estimatedCost: estimate.price, priceSource: estimate.source, priceKey: estimate.key } : { ...item, storeId };
-  });
-  state.household.shopping = { ...shopping, storeId, items };
-  persist(`Shopping estimates changed to ${storeLabel(storeId)}.`);
 }
 
 function shoppingBudgetModal() {
@@ -754,11 +749,13 @@ function shoppingBudgetModal() {
 
 function shoppingItemModal(item = null) {
   const entry = item || { id: "", name: "", quantity: 1, estimatedCost: "", recurring: false };
-  const selectedStore = storeLabel(state.household.shopping?.storeId);
+  const selectedStoreId = normaliseStoreId(entry.storeId || state.household.shopping?.storeId);
+  const selectedStore = storeLabel(selectedStoreId);
   openModal({
     title: item ? "Edit shopping item" : "Add to shopping list",
-    subtitle: `Type what you need and Brady Budget will predict a ${selectedStore} guide price.`,
+    subtitle: "Choose a store, then type what you need for a predictive guide price.",
     body: `<form data-form="shopping-item"><input type="hidden" name="id" value="${escapeHTML(entry.id)}" /><div class="form-grid">
+      <div class="field full"><label for="shopping-item-store">Store</label><select id="shopping-item-store" name="storeId">${shoppingStoreOptions(selectedStoreId)}</select><small class="field-note">Each item can come from a different store.</small></div>
       <div class="field full predictive-field"><label for="shopping-name">Item</label><input id="shopping-name" name="name" value="${escapeHTML(entry.name)}" placeholder="Try milk, bread or eggs" role="combobox" aria-autocomplete="list" aria-controls="shopping-product-suggestions" required /><div id="shopping-product-suggestions" class="product-suggestions" role="listbox" hidden></div></div>
       <div class="field"><label for="shopping-quantity">Quantity</label><input id="shopping-quantity" name="quantity" type="number" min="1" step="1" value="${escapeHTML(entry.quantity)}" required /></div>
       <div class="field"><label for="shopping-cost">Estimated price each</label><div class="money-input"><span>$</span><input id="shopping-cost" name="estimatedCost" type="number" min="0" step="0.01" value="${escapeHTML(entry.estimatedCost)}" placeholder="Filled automatically" aria-describedby="shopping-estimate-hint" required /></div><div class="estimate-hint-row"><small id="shopping-estimate-hint">Type an item to get a ${selectedStore} estimate.</small><button class="text-button" type="button" data-action="use-shopping-estimate">Use estimate</button></div></div>
@@ -1014,7 +1011,7 @@ async function handleSubmit(event) {
     const id = String(data.get("id"));
     const shopping = state.household.shopping;
     const existing = shopping.items.find((item) => item.id === id);
-    const storeId = normaliseStoreId(shopping.storeId);
+    const storeId = normaliseStoreId(data.get("storeId") || shopping.storeId);
     const priceInput = $("#shopping-cost", form);
     const priceSource = priceInput?.dataset.priceSource || "manual";
     const name = String(data.get("name")).trim();
@@ -1039,7 +1036,7 @@ async function handleSubmit(event) {
     const priceMemory = priceSource === "manual"
       ? rememberShoppingPrice(shopping.priceMemory, storeId, name, estimatedCost)
       : shopping.priceMemory;
-    state.household.shopping = { ...shopping, items, priceMemory };
+    state.household.shopping = { ...shopping, storeId, items, priceMemory };
     closeModal();
     persist(id ? "Shopping item updated." : "Added to the shared list.");
     return;
@@ -1303,7 +1300,11 @@ function init() {
     handleFileChange(event);
     if (event.target.id === "transaction-filter") filterTransactions();
     if (event.target.id === "bill-sharing") updateBillSplitPreview();
-    if (event.target.id === "shopping-store") changeShoppingStore(event.target.value);
+    if (event.target.id === "shopping-item-store") {
+      const priceInput = $("#shopping-cost");
+      if (priceInput) priceInput.dataset.priceSource = "";
+      updateShoppingEstimate({ force: true });
+    }
   });
   document.addEventListener("input", (event) => {
     if (event.target.id === "transaction-search") filterTransactions();
