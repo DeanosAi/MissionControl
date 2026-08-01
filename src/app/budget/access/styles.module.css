@@ -1,5 +1,6 @@
 .shell {
   min-height: 100vh;
+  min-height: 100dvh;
   padding: 32px 18px;
   color: #102a2a;
   background: #f3f0e8;
@@ -49,9 +50,13 @@
 .empty { color: #748886; }
 
 @media (max-width: 560px) {
-  .shell { padding: 20px 12px; }
+  .shell { padding: max(16px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
+  .links a { display: inline-flex; min-height: 44px; align-items: center; }
+  .heading { align-items: flex-start; }
+  .logo { width: 56px; height: 56px; flex: 0 0 auto; border-radius: 17px; }
   .card { padding: 18px; }
   .member { align-items: flex-start; flex-direction: column; }
   .member form, .member button { width: 100%; }
+  .member button { min-height: 48px; }
 }
 

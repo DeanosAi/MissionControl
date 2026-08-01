@@ -2113,6 +2113,8 @@ h1, h2, h3, h4, p { margin: 0; }
 }
 
 .brady-login-shell {
+  min-height: 100dvh;
+  padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
   color: #102a2a;
   background:
     radial-gradient(circle at 15% 10%, rgba(215, 241, 92, 0.38), transparent 24rem),
@@ -2154,8 +2156,15 @@ h1, h2, h3, h4, p { margin: 0; }
 }
 
 .brady-login-button {
+  min-height: 48px;
   color: #102a2a;
   background: #d7f15c;
+}
+
+@media (max-width: 560px) {
+  .brady-login-card { padding: 1.4rem; border-radius: 20px; }
+  .brady-login-card h1 { font-size: 1.85rem; }
+  .brady-login-card .login-field input { min-height: 50px; font-size: 16px; }
 }
 
 .access-form { display: grid; gap: 14px; }

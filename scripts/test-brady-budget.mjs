@@ -70,3 +70,20 @@ test('Brady Budget branding and yellow controls contain no white foreground artw
   assert.doesNotMatch(index, /<strong>Harbour<\/strong>/);
 });
 
+test('mobile layout protects touch targets, safe areas, forms, and bottom content', async () => {
+  const [styles, app, index] = await Promise.all([
+    readFile(new URL('../public/brady-budget/styles.css', import.meta.url), 'utf8'),
+    readFile(new URL('../public/brady-budget/js/app.js', import.meta.url), 'utf8'),
+    readFile(new URL('../public/brady-budget/index.html', import.meta.url), 'utf8'),
+  ]);
+  assert.match(index, /viewport-fit=cover/);
+  assert.match(styles, /--topbar:\s*calc\(72px \+ env\(safe-area-inset-top\)\)/);
+  assert.match(styles, /#main-content\s*\{[^}]*padding:\s*20px 16px 112px/);
+  assert.match(styles, /\.shopping-check\s*\{\s*width:\s*44px;\s*height:\s*44px/);
+  assert.match(styles, /\.field input, \.field select, \.field textarea, \.search-box input\s*\{[^}]*font-size:\s*16px/);
+  assert.match(styles, /max-height:\s*calc\(100dvh - env\(safe-area-inset-top\)\)/);
+  assert.match(app, /quickAddViews = new Set\(\["overview", "activity", "shopping"\]\)/);
+  assert.match(app, /input\.inputMode = input\.step === "1" \? "numeric" : "decimal"/);
+  assert.match(app, /aria-pressed="\$\{item\.checked\}"/);
+});
+

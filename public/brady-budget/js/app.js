@@ -131,8 +131,15 @@ function updateChrome() {
   $("#profile-initial").style.background = activeProfile?.colour || PROFILE_COLOURS[0];
   $("#profile-initial").style.color = "#102a2a";
   const quickAdd = $("#quick-add");
-  quickAdd.hidden = !state.profile.onboarded;
-  quickAdd.setAttribute("aria-label", activeView() === "shopping" ? "Add shopping item" : "Add transaction");
+  const quickAddViews = new Set(["overview", "activity", "shopping"]);
+  quickAdd.hidden = !state.profile.onboarded || !quickAddViews.has(view);
+  quickAdd.setAttribute("aria-label", view === "shopping" ? "Add shopping item" : "Add transaction");
+}
+
+function optimiseFormControls(root = document) {
+  root.querySelectorAll("input[type='number']").forEach((input) => {
+    input.inputMode = input.step === "1" ? "numeric" : "decimal";
+  });
 }
 
 function renderApp() {
@@ -144,6 +151,7 @@ function renderApp() {
   $("#main-content").innerHTML = `<div class="page-enter">${renderers[view]()}</div>`;
   if (!state.profile.onboarded) renderOnboarding();
   else $("#onboarding-root").innerHTML = "";
+  optimiseFormControls($("#main-content"));
 }
 
 function renderOverview() {
@@ -386,7 +394,7 @@ function renderShoppingRow(item) {
   const addedBy = state.household.profiles.find((profile) => profile.id === item.addedByProfileId);
   const total = Math.max(1, Number(item.quantity) || 1) * Math.max(0, Number(item.estimatedCost) || 0);
   return `<div class="shopping-row ${item.checked ? "checked" : ""}">
-    <button class="shopping-check" type="button" data-action="toggle-shopping-item" data-id="${escapeHTML(item.id)}" aria-label="${item.checked ? "Put" : "Mark"} ${escapeHTML(item.name)} ${item.checked ? "back on list" : "in trolley"}">${item.checked ? icon("check") : ""}</button>
+    <button class="shopping-check" type="button" data-action="toggle-shopping-item" data-id="${escapeHTML(item.id)}" aria-pressed="${item.checked}" aria-label="${item.checked ? "Put" : "Mark"} ${escapeHTML(item.name)} ${item.checked ? "back on list" : "in trolley"}">${item.checked ? icon("check") : ""}</button>
     <span class="shopping-copy"><strong>${escapeHTML(item.name)}${item.recurring ? '<em class="recurring-badge">Weekly</em>' : ""}</strong><span>${Math.max(1, Number(item.quantity) || 1)} × ${money(item.estimatedCost)} · added by ${escapeHTML(addedBy?.name || "Household")}</span></span>
     <strong class="shopping-price">${money(total)}</strong>
     <span class="shopping-actions"><button class="icon-button" data-action="edit-shopping-item" data-id="${escapeHTML(item.id)}" aria-label="Edit ${escapeHTML(item.name)}">${icon("edit")}</button><button class="icon-button danger" data-action="delete-shopping-item" data-id="${escapeHTML(item.id)}" aria-label="Delete ${escapeHTML(item.name)}">${icon("trash")}</button></span>
@@ -460,6 +468,7 @@ function renderOnboarding() {
       <section class="onboarding-content"><div class="step-dots">${steps}</div>${content}</section>
     </div>
   </div>`;
+  optimiseFormControls($("#onboarding-root"));
 }
 
 function onboardingWelcome() {
@@ -500,15 +509,19 @@ function onboardingTemplate() {
 }
 
 function openModal({ title, subtitle = "", body, size = "" }) {
+  $("#toast-region").innerHTML = "";
   $("#modal-root").innerHTML = `<div class="modal-backdrop" data-action="close-modal"><section class="modal ${size}" role="dialog" aria-modal="true" aria-labelledby="modal-title" data-modal-panel>
     <header class="modal-header"><div><h2 id="modal-title">${title}</h2>${subtitle ? `<p>${subtitle}</p>` : ""}</div><button class="modal-close" type="button" data-action="close-modal" aria-label="Close">${icon("close")}</button></header>
     ${body}
   </section></div>`;
+  document.body.classList.add("modal-open");
+  optimiseFormControls($("#modal-root"));
   setTimeout(() => $("#modal-root input:not([type='radio']):not([type='checkbox']), #modal-root select")?.focus(), 30);
 }
 
 function closeModal() {
   $("#modal-root").innerHTML = "";
+  document.body.classList.remove("modal-open");
   pendingCSVTransactions = [];
 }
 
