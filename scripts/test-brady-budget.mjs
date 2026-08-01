@@ -70,11 +70,12 @@ test('Brady Budget branding and yellow controls contain no white foreground artw
   assert.doesNotMatch(index, /<strong>Harbour<\/strong>/);
 });
 
-test('mobile layout protects touch targets, safe areas, forms, and bottom content', async () => {
-  const [styles, app, index] = await Promise.all([
+test('mobile layout protects touch targets, navigation, forms, and bottom content', async () => {
+  const [styles, app, index, storage] = await Promise.all([
     readFile(new URL('../public/brady-budget/styles.css', import.meta.url), 'utf8'),
     readFile(new URL('../public/brady-budget/js/app.js', import.meta.url), 'utf8'),
     readFile(new URL('../public/brady-budget/index.html', import.meta.url), 'utf8'),
+    readFile(new URL('../public/brady-budget/js/storage.js', import.meta.url), 'utf8'),
   ]);
   assert.match(index, /viewport-fit=cover/);
   assert.match(styles, /--topbar:\s*calc\(72px \+ env\(safe-area-inset-top\)\)/);
@@ -85,5 +86,11 @@ test('mobile layout protects touch targets, safe areas, forms, and bottom conten
   assert.match(app, /quickAddViews = new Set\(\["overview", "activity", "shopping"\]\)/);
   assert.match(app, /input\.inputMode = input\.step === "1" \? "numeric" : "decimal"/);
   assert.match(app, /aria-pressed="\$\{item\.checked\}"/);
+  assert.match(app, /function monthPickerModal\(\)/);
+  assert.match(app, /data-form="month-picker"/);
+  assert.match(app, /function updateVisibleSyncStatus\(\)/);
+  assert.doesNotMatch(app, /if \(activeView\(\) === "more"\) renderApp\(\);\s*\n\s*},\s*\n\s*}\);/);
+  assert.match(styles, /\.mobile-nav \.nav-link\.active\s*\{\s*color:\s*var\(--on-mint\);\s*background:\s*var\(--mint\)/);
+  assert.match(storage, /if \(remote\.status === status\) return;/);
 });
 

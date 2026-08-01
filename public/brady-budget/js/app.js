@@ -58,6 +58,15 @@ const PAGE_TITLES = {
   more: "More",
 };
 
+const SYNC_LABELS = {
+  connecting: "Connecting",
+  saving: "Saving changes",
+  live: "Live on both phones",
+  updated: "Household updated",
+  reconnecting: "Reconnecting",
+  offline: "Offline — changes queued",
+};
+
 const GROUPS = {
   fixed: { label: "Fixed costs", note: "Protected first", colour: "#79b8be" },
   everyday: { label: "Everyday spending", note: "Flexible this month", colour: "#ff8f70" },
@@ -121,7 +130,6 @@ function updateChrome() {
   const view = activeView();
   $("#page-title").textContent = PAGE_TITLES[view];
   $("#month-label").textContent = monthLabel(state.currentMonth, "en-AU", true);
-  $("#month-picker").value = state.currentMonth;
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   $("#greeting").textContent = state.profile.name ? `${greeting}, ${state.profile.name}` : greeting;
@@ -134,6 +142,16 @@ function updateChrome() {
   const quickAddViews = new Set(["overview", "activity", "shopping"]);
   quickAdd.hidden = !state.profile.onboarded || !quickAddViews.has(view);
   quickAdd.setAttribute("aria-label", view === "shopping" ? "Add shopping item" : "Add transaction");
+}
+
+function updateVisibleSyncStatus() {
+  const indicator = $("#main-content .sync-indicator");
+  const copy = $("#sync-status-copy");
+  if (!indicator || !copy) return;
+  const status = getRemoteStatus();
+  const remoteAccount = getRemoteAccount();
+  indicator.className = `sync-indicator ${status}`;
+  copy.textContent = `${SYNC_LABELS[status] || "Connecting"}${remoteAccount ? ` · signed in as ${remoteAccount.displayName}` : ""}`;
 }
 
 function optimiseFormControls(root = document) {
@@ -412,7 +430,7 @@ function renderMore() {
   const sizeLabel = bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`;
   const remoteAccount = getRemoteAccount();
   const syncStatus = getRemoteStatus();
-  const syncLabels = { connecting: "Connecting", saving: "Saving changes", live: "Live on both phones", updated: "Household updated", reconnecting: "Reconnecting", offline: "Offline — changes queued" };
+  const syncCopy = `${SYNC_LABELS[syncStatus] || "Connecting"}${remoteAccount ? ` · signed in as ${remoteAccount.displayName}` : ""}`;
   return `<section class="more-grid">
     <div>
       <article class="card">
@@ -422,8 +440,8 @@ function renderMore() {
       </article>
       <article class="card" style="margin-top:22px">
         <div class="section-heading"><div><h2>Settings & data</h2><p>You own your information</p></div></div>
-        <div class="settings-list">
-          <div class="settings-row"><span class="sync-indicator ${escapeHTML(syncStatus)}"></span><span><strong>Household sync</strong><small>${escapeHTML(syncLabels[syncStatus] || "Connecting")} ${remoteAccount ? `· signed in as ${escapeHTML(remoteAccount.displayName)}` : ""}</small></span><a class="button small secondary" href="/budget/logout">Sign out</a></div>
+          <div class="settings-list">
+            <div class="settings-row"><span class="sync-indicator ${escapeHTML(syncStatus)}"></span><span><strong>Household sync</strong><small id="sync-status-copy">${escapeHTML(syncCopy)}</small></span><a class="button small secondary" href="/budget/logout">Sign out</a></div>
           ${remoteAccount?.canManageAccess ? `<div class="settings-row"><span>🔐</span><span><strong>Household login</strong><small>Create or reset your partner’s restricted Brady Budget login</small></span><a class="button small secondary" href="/budget/access">Manage</a></div>` : ""}
           <div class="settings-row"><span>👥</span><span><strong>Household profiles</strong><small>${state.household.profiles.length} of ${PROFILE_LIMIT} profiles · budgets stay separate</small></span><button class="button small secondary" data-action="manage-profiles">Manage</button></div>
           <div class="settings-row"><span>👤</span><span><strong>Profile & preferences</strong><small>Name, income, currency and appearance</small></span><button class="button small secondary" data-action="edit-profile">Edit</button></div>
@@ -523,6 +541,17 @@ function closeModal() {
   $("#modal-root").innerHTML = "";
   document.body.classList.remove("modal-open");
   pendingCSVTransactions = [];
+}
+
+function monthPickerModal() {
+  openModal({
+    title: "Choose month",
+    subtitle: "Pick the month you want to view.",
+    body: `<form data-form="month-picker">
+      <div class="field"><label for="mobile-month-picker">Month</label><input id="mobile-month-picker" name="month" type="month" value="${escapeHTML(state.currentMonth)}" required /></div>
+      <div class="modal-actions"><button class="button secondary" type="button" data-action="close-modal">Cancel</button><button class="button" type="submit">View month</button></div>
+    </form>`,
+  });
 }
 
 function categoryOptions(selected = "") {
@@ -745,6 +774,12 @@ async function handleSubmit(event) {
   const data = new FormData(form);
   const type = form.dataset.form;
 
+  if (type === "month-picker") {
+    state.currentMonth = String(data.get("month") || monthKey());
+    closeModal();
+    persist();
+    return;
+  }
   if (type === "onboarding-profile") {
     state.profile.name = String(data.get("name")).trim();
     state.profile.payCadence = String(data.get("cadence"));
@@ -1148,10 +1183,6 @@ function init() {
   document.addEventListener("submit", handleSubmit);
   document.addEventListener("change", (event) => {
     handleFileChange(event);
-    if (event.target.id === "month-picker") {
-      state.currentMonth = event.target.value || monthKey();
-      persist();
-    }
     if (event.target.id === "transaction-filter") filterTransactions();
     if (event.target.id === "bill-sharing") updateBillSplitPreview();
   });
@@ -1159,11 +1190,7 @@ function init() {
     if (event.target.id === "transaction-search") filterTransactions();
     if (["bill-amount", "bill-your-share"].includes(event.target.id)) updateBillSplitPreview();
   });
-  $("#month-control").addEventListener("click", () => {
-    const picker = $("#month-picker");
-    if (picker.showPicker) picker.showPicker();
-    else picker.click();
-  });
+  $("#month-control").addEventListener("click", monthPickerModal);
   $("#profile-button").addEventListener("click", profileSwitcherModal);
   $("#quick-add").addEventListener("click", () => activeView() === "shopping" ? shoppingItemModal() : transactionModal());
   addEventListener("hashchange", () => {
@@ -1197,7 +1224,7 @@ function init() {
     onStatus(status) {
       if (["live", "offline", "reconnecting", "updated"].includes(status)) document.body.classList.remove("auth-pending");
       if (status === "updated") toast("Household changes updated.");
-      if (activeView() === "more") renderApp();
+      if (activeView() === "more") updateVisibleSyncStatus();
     },
   });
 }

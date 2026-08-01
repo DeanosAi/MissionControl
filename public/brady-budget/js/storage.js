@@ -85,6 +85,7 @@ export function mergeBudgetStates(base, local, server) {
 }
 
 function setStatus(status) {
+  if (remote.status === status) return;
   remote.status = status;
   remote.onStatus?.(status, remote.account);
 }
