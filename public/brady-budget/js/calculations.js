@@ -214,7 +214,7 @@ export function calculateBudget(state, selection = { kind: "monthly", anchor: `$
   const categoryRows = categories.map((category) => {
     const spent = spending[category.id] || 0;
     const budget = categoryAmountForPeriod(category, period.kind);
-    return { ...category, spent, remaining: budget - spent, percent: budget ? (spent / budget) * 100 : spent ? 100 : 0 };
+    return { ...category, sourceBudget: Math.max(0, Number(category.budget) || 0), budget, spent, remaining: budget - spent, percent: budget ? (spent / budget) * 100 : spent ? 100 : 0 };
   });
   const today = new Date();
   const todayKey = toLocalISO(today);

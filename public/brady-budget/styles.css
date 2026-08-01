@@ -654,9 +654,14 @@ svg {
 .plan-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 22px; align-items: start; }
 .category-group + .category-group { margin-top: 26px; }
 .group-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; padding: 0 7px; }
+.group-heading-copy { min-width: 0; }
+.group-title-line { display: flex; align-items: center; gap: 7px; }
 .group-header h3 { margin: 0; font-size: 0.84rem; }
 .group-header small { display: block; margin-top: 3px; color: var(--ink-faint); font-size: 0.66rem; }
 .group-header span { color: var(--ink-faint); font-size: 0.7rem; }
+.group-header .group-edit { width: 32px; height: 32px; flex: 0 0 32px; color: var(--ink-faint); }
+.group-header .group-edit svg { width: 15px; }
+.group-header .group-total { flex: 0 0 auto; margin-left: 10px; text-align: right; }
 .empty-group { margin: 8px 0 0; padding: 18px 10px 8px; color: var(--ink-faint); border-top: 1px solid var(--line); font-size: 0.74rem; }
 
 .donut {
@@ -1002,6 +1007,7 @@ svg {
   .plan-heading { align-items: flex-start; flex-direction: column; }
   .plan-heading .section-actions { width: 100%; justify-content: stretch; }
   .plan-heading .section-actions .button { flex: 1 1 120px; }
+  .group-header .group-edit { width: 44px; height: 44px; flex-basis: 44px; }
   .text-button { display: inline-flex; min-width: 44px; min-height: 44px; align-items: center; justify-content: center; padding: 8px 4px; }
   .icon-button { width: 44px; height: 44px; }
   .overview-grid, .content-grid, .plan-layout, .more-grid { grid-template-columns: 1fr; }

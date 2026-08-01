@@ -112,6 +112,9 @@ test('weekly, fortnightly, and monthly views use the correct dates and planning 
   const weeklyBudget = calculateBudget(state, weekly);
   assert.equal(weeklyBudget.expectedIncome, 1200);
   assert.equal(weeklyBudget.categoryBudget, 360);
+  assert.equal(weeklyBudget.categoryRows.find((category) => category.id === 'housing').budget, 120);
+  assert.equal(weeklyBudget.categoryRows.find((category) => category.id === 'housing').sourceBudget, 520);
+  assert.equal(weeklyBudget.categoryRows.find((category) => category.id === 'groceries').budget, 240);
   assert.equal(weeklyBudget.goalContributions, 60);
   assert.equal(weeklyBudget.expenseTotal, 100);
   assert.equal(weeklyBudget.safeToSpend, 920);
@@ -141,6 +144,9 @@ test('expenditure amounts can repeat weekly, fortnightly, or monthly', () => {
   assert.equal(Math.round(categoryAmountForPeriod(state.categories[3], 'monthly')), 50);
   assert.equal(Math.round(calculateBudget(state, { kind: 'monthly', anchor: '2026-08-05' }).categoryBudget), 1217);
   assert.equal(Math.round(calculateBudget(state, { kind: 'weekly', anchor: '2026-08-05' }).categoryBudget), 281);
+  const monthlyRows = calculateBudget(state, { kind: 'monthly', anchor: '2026-08-05' }).categoryRows;
+  assert.equal(Math.round(monthlyRows.find((category) => category.id === 'weekly').budget), 433);
+  assert.equal(monthlyRows.find((category) => category.id === 'weekly').sourceBudget, 100);
 });
 
 test('custom expenditure groups stay with their individual profile', () => {
@@ -208,7 +214,7 @@ test('mobile layout protects touch targets, navigation, forms, and bottom conten
   assert.match(app, /data-action="dismiss-household-notice"/);
   assert.match(app, /aria-label="Close individual budget message"/);
   assert.match(storage, /if \(remote\.status === status\) return;/);
-  assert.match(serviceWorker, /brady-budget-v13/);
+  assert.match(serviceWorker, /brady-budget-v14/);
   assert.match(app, /data-action="add-group"/);
   assert.match(app, />\$\{icon\("plus"\)\} Expenditure<\/button>/);
   assert.match(app, /id="category-frequency"/);
@@ -216,6 +222,11 @@ test('mobile layout protects touch targets, navigation, forms, and bottom conten
   assert.match(app, /Per fortnight/);
   assert.match(app, /Per month/);
   assert.match(app, /data-action="delete-category"/);
+  assert.match(app, /data-action="edit-group"/);
+  assert.match(app, /Rename group/);
+  assert.match(app, /renderMetric\("Assigned", summary\.categoryBudget,/);
+  assert.doesNotMatch(app, /renderMetric\("Assigned", summary\.categoryBudget \+ summary\.goalContributions/);
+  assert.doesNotMatch(app, /category && category\.id !== "uncategorised"/);
   assert.doesNotMatch(app, /data-action="archive-category"/);
 
   const manifest = JSON.parse(manifestSource);
