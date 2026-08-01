@@ -120,12 +120,13 @@ async function addShoppingItem(page, name, recurring = false) {
       };
     });
     console.log(`Second phone sees server snapshot: ${JSON.stringify(serverSnapshot)}.`);
-    await pageB.getByText('Milk', { exact: true }).waitFor({ timeout: 20_000 });
+    if (!serverSnapshot.hasMilk) throw new Error('The shared list save did not reach the server.');
+    const milkB = pageB.locator('.shopping-row').filter({ hasText: 'Milk' });
+    await milkB.waitFor({ timeout: 5_000 });
     const liveUpdateLatencyMs = Date.now() - liveUpdateStartedAt;
     console.log(`First cross-phone update arrived in ${liveUpdateLatencyMs}ms.`);
     await pageB.getByText('Weekly', { exact: true }).waitFor();
 
-    const milkB = pageB.locator('.shopping-row').filter({ hasText: 'Milk' });
     await milkB.locator('.shopping-check').click();
     await pageA.locator('.shopping-row.checked').filter({ hasText: 'Milk' }).waitFor({ timeout: 5_000 });
 
@@ -151,6 +152,7 @@ async function addShoppingItem(page, name, recurring = false) {
     await internetB.waitFor({ timeout: 5_000 });
     if (!(await internetB.textContent()).includes('$40')) throw new Error('Partner did not receive the $40 shared bill split.');
 
+    await openShopping(pageA);
     await pageA.evaluate(() => { document.documentElement.dataset.theme = 'dark'; });
     const yellowForegrounds = await pageA.evaluate(() => ({
       accent: getComputedStyle(document.querySelector('.button.accent')).color,
@@ -161,6 +163,8 @@ async function addShoppingItem(page, name, recurring = false) {
       if (colour !== 'rgb(16, 42, 42)') throw new Error(`${control} uses ${colour} on yellow.`);
     }
 
+    await pageA.evaluate(() => { document.documentElement.dataset.theme = 'light'; });
+    await pageA.waitForTimeout(3_500);
     await pageA.screenshot({ path: '.codex-preview/brady-budget-browser-verification.png', fullPage: true });
     if (errors.length) throw new Error(`Browser errors: ${errors.join(' | ')}`);
     console.log(JSON.stringify({
