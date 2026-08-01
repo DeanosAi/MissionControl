@@ -39,13 +39,16 @@ async function openShopping(page) {
   await page.getByText('Shared grocery plan', { exact: true }).waitFor();
 }
 
-async function addShoppingItem(page, name, recurring = false) {
+async function addShoppingItem(page, name, recurring = false, manualCost = null) {
   await page.getByRole('button', { name: 'Add item', exact: true }).click();
   await page.locator('#shopping-name').fill(name);
   await page.locator('#shopping-quantity').fill('1');
-  await page.locator('#shopping-cost').fill('4');
+  await page.waitForFunction(() => Number(document.querySelector('#shopping-cost')?.value) > 0);
+  const predictedPrice = await page.locator('#shopping-cost').inputValue();
+  if (manualCost != null) await page.locator('#shopping-cost').fill(String(manualCost));
   if (recurring) await page.getByLabel('Add every week').check();
   await page.locator('#modal-root').getByRole('button', { name: 'Add item', exact: true }).click();
+  return predictedPrice;
 }
 
 (async () => {
@@ -94,6 +97,11 @@ async function addShoppingItem(page, name, recurring = false) {
 
     await openShopping(pageA);
     await openShopping(pageB);
+    if (await pageA.locator('#shopping-store').inputValue() !== 'aldi') throw new Error('New household did not default to ALDI.');
+    await pageA.locator('#shopping-store').selectOption('coles');
+    await pageB.waitForFunction(() => document.querySelector('#shopping-store')?.value === 'coles');
+    await pageA.locator('#shopping-store').selectOption('aldi');
+    await pageB.waitForFunction(() => document.querySelector('#shopping-store')?.value === 'aldi');
     await pageA.getByRole('button', { name: 'Set budget' }).click();
     await pageA.locator('#shopping-budget').fill('200');
     await pageA.getByRole('button', { name: 'Save budget' }).click();
@@ -107,7 +115,8 @@ async function addShoppingItem(page, name, recurring = false) {
         return false;
       }
     });
-    await addShoppingItem(pageA, 'Milk', true);
+    const predictedMilkPrice = await addShoppingItem(pageA, 'Milk', true);
+    if (predictedMilkPrice !== '3.55') throw new Error(`ALDI milk prediction was ${predictedMilkPrice}, not 3.55.`);
     const saveResponse = await saveResponsePromise;
     console.log(`Shopping save returned HTTP ${saveResponse.status()}.`);
     const serverSnapshot = await pageB.evaluate(async () => {
@@ -126,6 +135,15 @@ async function addShoppingItem(page, name, recurring = false) {
     const liveUpdateLatencyMs = Date.now() - liveUpdateStartedAt;
     console.log(`First cross-phone update arrived in ${liveUpdateLatencyMs}ms.`);
     await pageB.getByText('Weekly', { exact: true }).waitFor();
+
+    await milkB.getByRole('button', { name: 'Edit Milk' }).click();
+    await pageB.locator('#shopping-cost').fill('3.45');
+    await pageB.locator('#modal-root').getByRole('button', { name: 'Save item' }).click();
+    await pageA.locator('.shopping-row').filter({ hasText: 'ALDI saved price' }).waitFor({ timeout: 5_000 });
+    await pageA.getByRole('button', { name: 'Add item', exact: true }).click();
+    await pageA.locator('#shopping-name').fill('Milk');
+    if (await pageA.locator('#shopping-cost').inputValue() !== '3.45') throw new Error('Corrected ALDI milk price was not learned across phones.');
+    await pageA.getByRole('button', { name: 'Close' }).click();
 
     await milkB.locator('.shopping-check').click();
     await pageA.locator('.shopping-row.checked').filter({ hasText: 'Milk' }).waitFor({ timeout: 5_000 });
@@ -185,6 +203,9 @@ async function addShoppingItem(page, name, recurring = false) {
     console.log(JSON.stringify({
       profilesIndependent: true,
       realtimeShopping: true,
+      storeSelectionSynced: true,
+      predictedMilkPrice,
+      correctedPriceLearnedAcrossPhones: true,
       concurrentItemsMerged: true,
       tickOffSynced: true,
       recurringItemVisible: true,

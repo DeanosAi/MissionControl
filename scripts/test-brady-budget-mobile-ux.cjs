@@ -85,9 +85,17 @@ async function assertMobileLayout(page, label) {
 
     await page.locator('.mobile-nav').getByText('Shopping', { exact: true }).click();
     await page.getByText('Shared grocery plan', { exact: true }).waitFor();
+    if (await page.locator('#shopping-store').inputValue() !== 'aldi') fail('Shopping list does not default to ALDI');
 
     await page.getByRole('button', { name: 'Add item', exact: true }).click();
-    await page.locator('#shopping-name').fill('Milk');
+    await page.locator('#shopping-name').fill('mil');
+    const predictedMilk = page.locator('#shopping-product-suggestions').getByRole('button', { name: /Milk 2L/ });
+    await predictedMilk.waitFor();
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: path.join(previewDir, 'brady-budget-predictive-suggestions.png'), fullPage: false });
+    await predictedMilk.click();
+    if (await page.locator('#shopping-name').inputValue() !== 'Milk 2L') fail('Predictive product text did not complete Milk 2L');
+    if (await page.locator('#shopping-cost').inputValue() !== '3.55') fail('ALDI milk estimate was not filled automatically');
     await page.locator('#shopping-quantity').fill('2');
     await page.locator('#shopping-cost').fill('4.50');
     await page.getByLabel('Add every week').check();
@@ -118,7 +126,17 @@ async function assertMobileLayout(page, label) {
     await page.screenshot({ path: path.join(previewDir, 'brady-budget-mobile-form.png'), fullPage: false });
 
     await page.locator('#modal-root').getByRole('button', { name: 'Add item', exact: true }).click();
-    await page.locator('.shopping-row').filter({ hasText: 'Milk' }).waitFor();
+    const milkRow = page.locator('.shopping-row').filter({ hasText: 'Milk 2L' });
+    await milkRow.waitFor();
+    await page.locator('#shopping-store').selectOption('coles');
+    await page.locator('.shopping-row').filter({ hasText: 'Coles estimate' }).waitFor();
+    await page.locator('#shopping-store').selectOption('aldi');
+    await page.locator('.shopping-row').filter({ hasText: 'ALDI saved price' }).waitFor();
+
+    await page.getByRole('button', { name: 'Add item', exact: true }).click();
+    await page.locator('#shopping-name').fill('Milk 2L');
+    if (await page.locator('#shopping-cost').inputValue() !== '4.50') fail('Corrected ALDI price was not remembered');
+    await page.getByRole('button', { name: 'Close' }).click();
     await page.waitForTimeout(3_500);
 
     const layouts = {};

@@ -1,3 +1,5 @@
+import { normaliseStoreId } from "./pricing.js";
+
 export const PROFILE_LIMIT = 2;
 export const PROFILE_COLOURS = ["#d7f15c", "#ff8f70"];
 
@@ -16,8 +18,14 @@ export function shoppingWeekKey(date = new Date()) {
 function normaliseShopping(shopping) {
   const currentWeek = shoppingWeekKey();
   const previousWeek = shopping?.weekKey || currentWeek;
+  const storeId = normaliseStoreId(shopping?.storeId);
   let items = Array.isArray(shopping?.items)
-    ? shopping.items.map((item) => ({ ...item, recurring: Boolean(item.recurring) }))
+    ? shopping.items.map((item) => ({
+      ...item,
+      recurring: Boolean(item.recurring),
+      storeId: normaliseStoreId(item.storeId || storeId),
+      priceSource: item.priceSource || (Number(item.estimatedCost) > 0 ? "manual" : "fallback"),
+    }))
     : [];
   if (previousWeek !== currentWeek) {
     items = items
@@ -31,6 +39,8 @@ function normaliseShopping(shopping) {
   return {
     budget: Math.max(0, Number(shopping?.budget) || 0),
     weekKey: currentWeek,
+    storeId,
+    priceMemory: shopping?.priceMemory && typeof shopping.priceMemory === "object" ? shopping.priceMemory : {},
     items,
   };
 }
