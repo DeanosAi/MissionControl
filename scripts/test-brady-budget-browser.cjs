@@ -169,7 +169,7 @@ async function addShoppingItem(page, name, recurring = false, storeId = 'aldi', 
     await pageA.locator('#profile-income').fill('220');
     await pageA.getByText(/This equals \$880\.00 per budgeting month/).waitFor();
     await pageA.getByRole('button', { name: 'Save preferences' }).click();
-    await pageB.getByText('Household changes updated.').waitFor({ timeout: 5_000 });
+    await pageB.getByText('Household changes updated.').first().waitFor({ timeout: 5_000 });
     await pageB.locator('.mobile-nav').getByText('More', { exact: true }).click();
     await pageB.locator('.settings-row').filter({ hasText: 'Profile & preferences' }).getByRole('button', { name: 'Edit' }).click();
     if (await pageB.locator('#profile-income-cadence').inputValue() !== 'weekly' || await pageB.locator('#profile-income').inputValue() !== '220') {
