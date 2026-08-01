@@ -937,7 +937,7 @@ svg {
   .mobile-nav .nav-link { display: grid; min-width: 44px; min-height: 56px; place-items: center; align-content: center; gap: 4px; padding: 2px 0; color: var(--ink-faint); background: transparent; border-radius: 11px; font-size: 0.68rem; line-height: 1; }
   .mobile-nav .nav-link svg { width: 21px; height: 21px; }
   .mobile-nav .nav-link span { display: block; }
-  .mobile-nav .nav-link.active { color: var(--on-mint); }
+  .mobile-nav .nav-link.active { color: var(--on-mint); background: var(--mint); }
   .fab { position: fixed; z-index: 35; right: 16px; bottom: calc(86px + env(safe-area-inset-bottom)); display: grid; width: 56px; height: 56px; padding: 0; place-items: center; color: var(--on-mint); background: var(--mint); border: 0; border-radius: 18px; box-shadow: 0 12px 30px rgba(16, 42, 42, 0.25); cursor: pointer; }
   .fab[hidden] { display: none; }
   .fab svg { width: 23px; height: 23px; }

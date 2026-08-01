@@ -72,6 +72,17 @@ async function assertMobileLayout(page, label) {
     await page.locator('body:not(.auth-pending)').waitFor({ timeout: 15_000 });
     await page.getByRole('button', { name: 'Explore sample' }).click();
     await page.getByText('Safe to spend', { exact: true }).waitFor();
+
+    await page.getByRole('button', { name: 'Choose month' }).click();
+    await page.locator('#mobile-month-picker').waitFor();
+    await page.locator('#mobile-month-picker').fill('2026-07');
+    await page.getByRole('button', { name: 'View month', exact: true }).click();
+    await page.locator('#mobile-month-picker').waitFor({ state: 'detached' });
+    await page.getByRole('button', { name: 'Choose month' }).click();
+    const reopenedMonth = await page.locator('#mobile-month-picker').inputValue();
+    if (reopenedMonth !== '2026-07') fail('Calendar button did not retain the selected month', reopenedMonth);
+    await page.getByRole('button', { name: 'Close' }).click();
+
     await page.locator('.mobile-nav').getByText('Shopping', { exact: true }).click();
     await page.getByText('Shared grocery plan', { exact: true }).waitFor();
 
@@ -141,9 +152,20 @@ async function assertMobileLayout(page, label) {
     }
     const expectedQuickAdd = { overview: true, plan: false, activity: true, goals: false, shopping: true, more: false };
     if (JSON.stringify(quickAddByView) !== JSON.stringify(expectedQuickAdd)) fail('Floating action is shown in the wrong mobile context', quickAddByView);
+
+    const activeNavigation = await page.evaluate(() => {
+      document.documentElement.dataset.theme = 'dark';
+      const active = document.querySelector('.mobile-nav .nav-link.active');
+      const style = getComputedStyle(active);
+      return { label: active.textContent.trim(), color: style.color, background: style.backgroundColor };
+    });
+    if (activeNavigation.label !== 'More' || activeNavigation.background !== 'rgb(215, 241, 92)' || activeNavigation.color !== 'rgb(16, 42, 42)') {
+      fail('Selected bottom navigation item is not legible in dark mode', activeNavigation);
+    }
+    await page.screenshot({ path: path.join(previewDir, 'brady-budget-active-tab-dark.png'), fullPage: false });
     if (pageErrors.length) fail('Mobile browser errors', pageErrors);
 
-    console.log(JSON.stringify({ formAudit, layouts, quickAddByView, compactViewLayouts }, null, 2));
+    console.log(JSON.stringify({ reopenedMonth, formAudit, layouts, quickAddByView, compactViewLayouts, activeNavigation }, null, 2));
   } finally {
     await browser.close();
   }

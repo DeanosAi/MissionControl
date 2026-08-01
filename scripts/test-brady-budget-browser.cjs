@@ -152,6 +152,21 @@ async function addShoppingItem(page, name, recurring = false) {
     await internetB.waitFor({ timeout: 5_000 });
     if (!(await internetB.textContent()).includes('$40')) throw new Error('Partner did not receive the $40 shared bill split.');
 
+    await pageB.evaluate(() => {
+      window.scrollTo(0, Math.min(320, document.documentElement.scrollHeight - innerHeight));
+      window.__bradyMoreRoot = document.querySelector('#main-content .page-enter');
+      window.__bradyMoreScroll = window.scrollY;
+    });
+    await pageB.waitForTimeout(6_500);
+    const moreViewStability = await pageB.evaluate(() => ({
+      sameRoot: window.__bradyMoreRoot === document.querySelector('#main-content .page-enter'),
+      beforeScroll: window.__bradyMoreScroll,
+      afterScroll: window.scrollY,
+    }));
+    if (!moreViewStability.sameRoot || Math.abs(moreViewStability.afterScroll - moreViewStability.beforeScroll) > 1) {
+      throw new Error(`More view refreshed or moved during the sync heartbeat: ${JSON.stringify(moreViewStability)}`);
+    }
+
     await openShopping(pageA);
     await pageA.evaluate(() => { document.documentElement.dataset.theme = 'dark'; });
     const yellowForegrounds = await pageA.evaluate(() => ({
@@ -174,6 +189,7 @@ async function addShoppingItem(page, name, recurring = false) {
       tickOffSynced: true,
       recurringItemVisible: true,
       sharedBillSplit: '60/40',
+      moreViewStability,
       accessibleYellowForegrounds: yellowForegrounds,
     }, null, 2));
   } finally {
