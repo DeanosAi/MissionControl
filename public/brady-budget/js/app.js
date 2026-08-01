@@ -7,12 +7,19 @@ import {
   formatDate,
   goalProjection,
   monthKey,
-  monthLabel,
   normalizeIncome,
+  normalisePeriodSelection,
   parseBankCSV,
   parseLocalDate,
+  periodBounds,
+  periodLabel,
+  periodNoun,
+  periodTitle,
+  recurringAmountForPeriod,
+  scaleMonthlyAmount,
   splitBillAmount,
   toLocalISO,
+  transactionsForPeriod,
   uid,
   upcomingBills,
   validateState,
@@ -59,7 +66,7 @@ const NAV_ITEMS = [
 
 const PAGE_TITLES = {
   overview: "Overview",
-  plan: "Monthly plan",
+  plan: "Plan",
   activity: "Activity",
   goals: "Savings goals",
   shopping: "Shopping list",
@@ -76,10 +83,11 @@ const SYNC_LABELS = {
 };
 
 const HOUSEHOLD_NOTICE_DISMISSED_KEY = "brady-budget:household-notice-dismissed";
+const VIEW_PERIOD_STORAGE_KEY = "brady-budget:view-period-v1";
 
 const GROUPS = {
   fixed: { label: "Fixed costs", note: "Protected first", colour: "#79b8be" },
-  everyday: { label: "Everyday spending", note: "Flexible this month", colour: "#ff8f70" },
+  everyday: { label: "Everyday spending", note: "Flexible spending", colour: "#ff8f70" },
   future: { label: "Future & irregular", note: "Build a buffer", colour: "#9184c8" },
 };
 
@@ -90,6 +98,7 @@ const groceryMoney = (value) => money(value, { maximumFractionDigits: 2 });
 const icon = (name) => `<svg aria-hidden="true"><use href="#i-${name}"></use></svg>`;
 
 let state = loadState();
+let viewPeriod = loadViewPeriod(state.currentMonth);
 let onboardingStep = 0;
 let pendingCSVTransactions = [];
 let deferredInstallPrompt = null;
@@ -106,6 +115,41 @@ function escapeHTML(value) {
 function activeView() {
   const hash = location.hash.replace("#", "");
   return NAV_ITEMS.some((item) => item.id === hash) ? hash : "overview";
+}
+
+function loadViewPeriod(fallbackMonth = monthKey()) {
+  const fallbackAnchor = fallbackMonth === monthKey() ? toLocalISO() : `${fallbackMonth}-01`;
+  try {
+    const stored = JSON.parse(localStorage.getItem(VIEW_PERIOD_STORAGE_KEY) || "null");
+    return stored ? normalisePeriodSelection(stored, fallbackMonth) : { kind: "monthly", anchor: fallbackAnchor };
+  } catch {
+    return { kind: "monthly", anchor: fallbackAnchor };
+  }
+}
+
+function setViewPeriod(selection) {
+  viewPeriod = normalisePeriodSelection(selection, state.currentMonth);
+  try {
+    localStorage.setItem(VIEW_PERIOD_STORAGE_KEY, JSON.stringify(viewPeriod));
+  } catch {
+    // The selected view still works for this visit if device storage is unavailable.
+  }
+}
+
+function selectedPeriod() {
+  return periodBounds(viewPeriod);
+}
+
+function selectedPeriodAmount(monthlyAmount) {
+  return scaleMonthlyAmount(monthlyAmount, viewPeriod.kind);
+}
+
+function selectedPeriodName() {
+  return periodNoun(viewPeriod.kind);
+}
+
+function selectedPeriodTitle() {
+  return periodTitle(viewPeriod.kind);
 }
 
 function categoryById(id) {
@@ -139,8 +183,9 @@ function applyTheme() {
 
 function updateChrome() {
   const view = activeView();
-  $("#page-title").textContent = PAGE_TITLES[view];
-  $("#month-label").textContent = monthLabel(state.currentMonth, "en-AU", true);
+  $("#page-title").textContent = view === "plan" ? `${selectedPeriodTitle()} plan` : PAGE_TITLES[view];
+  $("#month-label").textContent = periodLabel(viewPeriod, "en-AU", true);
+  $("#month-control").setAttribute("aria-label", `Choose budget period. Currently ${viewPeriod.kind}, ${periodLabel(viewPeriod)}`);
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   $("#greeting").textContent = state.profile.name ? `${greeting}, ${state.profile.name}` : greeting;
@@ -184,13 +229,13 @@ function renderApp() {
 }
 
 function renderOverview() {
-  const summary = calculateBudget(state);
+  const period = selectedPeriod();
+  const summary = calculateBudget(state, period);
   const safeClass = summary.safeToSpend < 0 ? "negative" : "positive";
-  const recent = [...state.transactions]
-    .filter((transaction) => String(transaction.date).slice(0, 7) === state.currentMonth)
+  const recent = [...transactionsForPeriod(state.transactions, period)]
     .sort((a, b) => String(b.date).localeCompare(String(a.date)))
     .slice(0, 5);
-  const bills = upcomingBills(state.bills, new Date(), 40).slice(0, 4);
+  const bills = upcomingBills(state.bills, period.startDate, Math.max(0, period.days - 1)).slice(0, 4);
   const topCategories = [...summary.categoryRows]
     .filter((category) => category.budget > 0 || category.spent > 0)
     .sort((a, b) => b.spent - a.spent)
@@ -198,7 +243,7 @@ function renderOverview() {
   const plannedTotal = summary.categoryBudget + summary.goalContributions;
   const progress = summary.expectedIncome ? clamp((summary.expenseTotal / summary.expectedIncome) * 100, 0, 100) : 0;
   const setupNotice = summary.expectedIncome <= 0
-    ? `<div class="notice warning">${icon("info")}<span>Add your expected monthly income to calculate what is safe to spend.</span><button class="text-button" data-action="edit-profile">Set income</button></div>`
+    ? `<div class="notice warning">${icon("info")}<span>Add your expected income to calculate what is safe to spend.</span><button class="text-button" data-action="edit-profile">Set income</button></div>`
     : "";
   const demoNotice = state.profile.demoMode
     ? `<div class="notice">${icon("info")}<span>You’re exploring sample data. Nothing here is connected to a real bank.</span><button class="text-button" data-action="start-fresh">Start fresh</button></div>`
@@ -220,7 +265,7 @@ function renderOverview() {
         <div class="hero-content">
           <p class="hero-label"><span class="dot"></span> Safe to spend</p>
           <div class="hero-value">${money(summary.safeToSpend)}</div>
-          <p class="hero-subtitle"><strong>${money(summary.dailySafe)}</strong> per day for the next ${summary.daysLeft} day${summary.daysLeft === 1 ? "" : "s"}, after fixed costs and goal contributions.</p>
+          <p class="hero-subtitle"><strong>${money(summary.dailySafe)}</strong> per day ${summary.isCurrentPeriod ? `for the next ${summary.daysLeft} day${summary.daysLeft === 1 ? "" : "s"}` : `across this ${selectedPeriodName()}`}, after fixed costs and goal contributions.</p>
         </div>
         <div class="hero-stats">
           <div class="hero-stat"><span>Expected income</span><strong>${money(summary.expectedIncome)}</strong></div>
@@ -230,7 +275,7 @@ function renderOverview() {
       </article>
 
       <article class="card snapshot-card">
-        <div class="section-heading"><div><h2>Monthly snapshot</h2><p>${monthLabel(state.currentMonth)}</p></div><button class="text-button" data-action="go-plan">View plan</button></div>
+        <div class="section-heading"><div><h2>${selectedPeriodTitle()} snapshot</h2><p>${periodLabel(period)}</p></div><button class="text-button" data-action="go-plan">View plan</button></div>
         <div class="snapshot-list">
           <div class="snapshot-row"><span class="snapshot-icon income">↗</span><span class="snapshot-copy"><strong>Expected income</strong><span>${money(summary.incomeReceived)} received</span></span><strong class="snapshot-amount">${money(summary.expectedIncome)}</strong></div>
           <div class="snapshot-row"><span class="snapshot-icon planned">◎</span><span class="snapshot-copy"><strong>Assigned</strong><span>Including savings goals</span></span><strong class="snapshot-amount">${money(plannedTotal)}</strong></div>
@@ -244,18 +289,18 @@ function renderOverview() {
     <section class="content-grid">
       <article class="card">
         <div class="section-heading"><div><h2>Spending plan</h2><p>Your most active categories</p></div><button class="text-button" data-action="go-plan">All categories</button></div>
-        ${topCategories.length ? `<div class="budget-list">${topCategories.map(renderBudgetRow).join("")}</div>` : renderEmpty("wallet", "Build your monthly plan", "Assign money to categories to see how your spending tracks.", "Set up plan", "go-plan")}
+        ${topCategories.length ? `<div class="budget-list">${topCategories.map(renderBudgetRow).join("")}</div>` : renderEmpty("wallet", `Build your ${selectedPeriodName()} plan`, `Assign money to categories to see how spending tracks for this ${selectedPeriodName()}.`, "Set up plan", "go-plan")}
       </article>
       <article class="card">
-        <div class="section-heading"><div><h2>Coming up</h2><p>Next 40 days</p></div><button class="text-button" data-action="add-bill">Add bill</button></div>
-        ${bills.length ? `<div class="bill-list">${bills.map(renderBillRow).join("")}</div>` : renderEmpty("calendar", "No upcoming bills", "Add recurring bills so your safe-to-spend number stays realistic.", "Add a bill", "add-bill")}
+        <div class="section-heading"><div><h2>Coming up</h2><p>${periodLabel(period)}</p></div><button class="text-button" data-action="add-bill">Add bill</button></div>
+        ${bills.length ? `<div class="bill-list">${bills.map(renderBillRow).join("")}</div>` : renderEmpty("calendar", `No bills in this ${selectedPeriodName()}`, "Add recurring bills so your safe-to-spend number stays realistic.", "Add a bill", "add-bill")}
       </article>
     </section>
 
     <section class="content-grid">
       <article class="card">
-        <div class="section-heading"><div><h2>Recent activity</h2><p>${recent.length} latest transactions</p></div><button class="text-button" data-action="go-activity">See all</button></div>
-        ${recent.length ? `<div class="transaction-list">${recent.map(renderTransactionRow).join("")}</div>` : renderEmpty("activity", "No transactions yet", "Add spending and income manually, or import a bank CSV.", "Add transaction", "add-transaction")}
+        <div class="section-heading"><div><h2>Recent activity</h2><p>${recent.length} transaction${recent.length === 1 ? "" : "s"} this ${selectedPeriodName()}</p></div><button class="text-button" data-action="go-activity">See all</button></div>
+        ${recent.length ? `<div class="transaction-list">${recent.map(renderTransactionRow).join("")}</div>` : renderEmpty("activity", `No transactions this ${selectedPeriodName()}`, "Add spending and income manually, or import a bank CSV.", "Add transaction", "add-transaction")}
       </article>
       <article class="card">
         <div class="section-heading"><div><h2>Goals</h2><p>Future you will thank you</p></div><button class="text-button" data-action="go-goals">View goals</button></div>
@@ -308,9 +353,13 @@ function renderGoalMiniList() {
 }
 
 function renderPlan() {
-  const summary = calculateBudget(state);
+  const period = selectedPeriod();
+  const summary = calculateBudget(state, period);
   const groups = Object.entries(GROUPS);
   const assignedPercent = summary.expectedIncome ? clamp(((summary.categoryBudget + summary.goalContributions) / summary.expectedIncome) * 100, 0, 100) : 0;
+  const planEditCopy = viewPeriod.kind === "monthly"
+    ? "Tap any category to change its monthly amount"
+    : `Showing this ${selectedPeriodName()}’s share of your monthly plan. Tap a category to change its saved monthly amount.`;
   return `<section class="metrics-grid">
       ${renderMetric("Expected income", summary.expectedIncome, "↗", `${money(summary.incomeReceived)} received`)}
       ${renderMetric("Assigned", summary.categoryBudget + summary.goalContributions, "◎", `${Math.round(assignedPercent)}% of income`)}
@@ -319,7 +368,7 @@ function renderPlan() {
     </section>
     <section class="plan-layout">
       <div>
-        <div class="section-heading"><div><h2>Give your money a job</h2><p>Tap any category to change its monthly amount</p></div><button class="button small secondary" data-action="add-category">${icon("plus")} Category</button></div>
+        <div class="section-heading"><div><h2>Give your money a job</h2><p>${planEditCopy}</p></div><button class="button small secondary" data-action="add-category">${icon("plus")} Category</button></div>
         ${groups.map(([groupId, group]) => {
           const categories = summary.categoryRows.filter((category) => category.group === groupId);
           const total = categories.reduce((sum, category) => sum + category.budget, 0);
@@ -330,7 +379,7 @@ function renderPlan() {
         }).join("")}
       </div>
       <aside class="card">
-        <div class="section-heading"><div><h2>Plan balance</h2><p>${monthLabel(state.currentMonth)}</p></div></div>
+        <div class="section-heading"><div><h2>Plan balance</h2><p>${periodLabel(period)}</p></div></div>
         <div class="donut" style="--percent:${assignedPercent}"><span class="donut-copy"><strong>${Math.round(assignedPercent)}%</strong><span>of income assigned</span></span></div>
         <div class="legend">
           ${groups.map(([groupId, group]) => {
@@ -348,7 +397,7 @@ function renderBudgetRowInner(category) {
   const percent = clamp(category.percent, 0, 100);
   const status = category.percent > 100 ? "over" : category.percent >= 80 ? "warn" : "";
   return `<span class="category-icon">${escapeHTML(category.icon)}</span>
-    <span class="category-name"><strong>${escapeHTML(category.name)}</strong><span>${GROUPS[category.group]?.note || "Monthly category"}</span></span>
+    <span class="category-name"><strong>${escapeHTML(category.name)}</strong><span>${GROUPS[category.group]?.note || `${selectedPeriodTitle()} category`}</span></span>
     <span class="progress-wrap"><span class="progress-bar"><span class="${status}" style="width:${percent}%"></span></span><span class="progress-label">${money(category.spent)} of ${money(category.budget)} used</span></span>
     <span class="budget-remaining"><strong class="${category.remaining < 0 ? "over" : ""}">${money(category.remaining)}</strong><span>${category.remaining < 0 ? "over" : "left"}</span></span>`;
 }
@@ -358,8 +407,7 @@ function renderMetric(label, value, symbol, note) {
 }
 
 function renderActivity() {
-  const transactions = [...state.transactions]
-    .filter((transaction) => String(transaction.date).slice(0, 7) === state.currentMonth)
+  const transactions = [...transactionsForPeriod(state.transactions, selectedPeriod())]
     .sort((a, b) => String(b.date).localeCompare(String(a.date)));
   const grouped = transactions.reduce((groups, transaction) => {
     (groups[transaction.date] ||= []).push(transaction);
@@ -374,16 +422,16 @@ function renderActivity() {
       </div>
     </div>
     <article class="card" id="activity-list">
-      ${transactions.length ? Object.entries(grouped).map(([date, items]) => `<section class="transaction-date-group"><h2 class="transaction-date-heading">${formatDate(date, { weekday: "long", day: "numeric", month: "long" })}</h2><div class="transaction-list">${items.map((transaction) => renderTransactionRow(transaction, true)).join("")}</div></section>`).join("") : renderEmpty("activity", "No activity this month", "Add a transaction or import a CSV from your bank.", "Add transaction", "add-transaction")}
+      ${transactions.length ? Object.entries(grouped).map(([date, items]) => `<section class="transaction-date-group"><h2 class="transaction-date-heading">${formatDate(date, { weekday: "long", day: "numeric", month: "long" })}</h2><div class="transaction-list">${items.map((transaction) => renderTransactionRow(transaction, true)).join("")}</div></section>`).join("") : renderEmpty("activity", `No activity this ${selectedPeriodName()}`, "Add a transaction or import a CSV from your bank.", "Add transaction", "add-transaction")}
     </article>`;
 }
 
 function renderGoals() {
   const goals = state.goals.filter((goal) => !goal.archived);
   const totalSaved = goals.reduce((sum, goal) => sum + (Number(goal.saved) || 0), 0);
-  const monthly = goals.reduce((sum, goal) => sum + (Number(goal.monthlyContribution) || 0), 0);
-  return `<div class="section-heading"><div><h2>${money(totalSaved)} saved across ${goals.length} goal${goals.length === 1 ? "" : "s"}</h2><p>${money(monthly)} reserved each month</p></div><button class="button" data-action="add-goal">${icon("plus")} New goal</button></div>
-    ${goals.length ? `<section class="goals-grid">${goals.map(renderGoalCard).join("")}</section>` : `<article class="card">${renderEmpty("goal", "Make the future feel affordable", "Create a target and Brady Budget will reserve a manageable monthly contribution before calculating what is safe to spend.", "Create your first goal", "add-goal")}</article>`}`;
+  const reserved = goals.reduce((sum, goal) => sum + selectedPeriodAmount(goal.monthlyContribution), 0);
+  return `<div class="section-heading"><div><h2>${money(totalSaved)} saved across ${goals.length} goal${goals.length === 1 ? "" : "s"}</h2><p>${money(reserved)} reserved this ${selectedPeriodName()}</p></div><button class="button" data-action="add-goal">${icon("plus")} New goal</button></div>
+    ${goals.length ? `<section class="goals-grid">${goals.map(renderGoalCard).join("")}</section>` : `<article class="card">${renderEmpty("goal", "Make the future feel affordable", `Create a target and Brady Budget will reserve a manageable amount each ${selectedPeriodName()} before calculating what is safe to spend.`, "Create your first goal", "add-goal")}</article>`}`;
 }
 
 function renderGoalCard(goal) {
@@ -396,7 +444,7 @@ function renderGoalCard(goal) {
     <div class="goal-value">${money(goal.saved)}</div>
     <div class="goal-progress"><span style="width:${percent}%;background:${escapeHTML(goal.colour || "#9184c8")}"></span></div>
     <div class="goal-footer"><span>${Math.round(percent)}% complete</span><span>${money(projection.remaining)} to go</span></div>
-    <div class="goal-actions"><button class="button small accent" data-action="contribute-goal" data-id="${escapeHTML(goal.id)}">${icon("plus")} Add money</button><span class="button small ghost">${money(goal.monthlyContribution)}/mo</span></div>
+    <div class="goal-actions"><button class="button small accent" data-action="contribute-goal" data-id="${escapeHTML(goal.id)}">${icon("plus")} Add money</button><span class="button small ghost">${money(selectedPeriodAmount(goal.monthlyContribution))}/${viewPeriod.kind === "weekly" ? "wk" : viewPeriod.kind === "fortnightly" ? "fortnight" : "mo"}</span></div>
   </article>`;
 }
 
@@ -448,9 +496,10 @@ function renderShoppingRow(item) {
 function renderMore() {
   const bills = [...state.bills].filter((bill) => bill.active !== false).sort((a, b) => String(a.nextDue).localeCompare(String(b.nextDue)));
   const sharedBills = bills.filter((bill) => bill.shared);
-  const activeShared = sharedBills.reduce((sum, bill) => sum + (Number(bill.amount) || 0), 0);
-  const partnerShared = sharedBills.reduce((sum, bill) => sum + (Number(bill.sharedPartnerAmount) || 0), 0);
-  const sharedTotal = sharedBills.reduce((sum, bill) => sum + (Number(bill.sharedTotal) || 0), 0);
+  const periodBillTotal = bills.reduce((sum, bill) => sum + recurringAmountForPeriod(bill.amount, bill.frequency, viewPeriod.kind), 0);
+  const activeShared = sharedBills.reduce((sum, bill) => sum + recurringAmountForPeriod(bill.amount, bill.frequency, viewPeriod.kind), 0);
+  const partnerShared = sharedBills.reduce((sum, bill) => sum + recurringAmountForPeriod(bill.sharedPartnerAmount, bill.frequency, viewPeriod.kind), 0);
+  const sharedTotal = sharedBills.reduce((sum, bill) => sum + recurringAmountForPeriod(bill.sharedTotal, bill.frequency, viewPeriod.kind), 0);
   const partner = state.household.profiles.find((profile) => profile.id !== state.household.activeProfileId);
   const bytes = stateSize(state);
   const sizeLabel = bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`;
@@ -460,8 +509,8 @@ function renderMore() {
   return `<section class="more-grid">
     <div>
       <article class="card">
-        <div class="section-heading"><div><h2>Bills & subscriptions</h2><p>Recurring costs stay protected</p></div><button class="button small secondary" data-action="add-bill">${icon("plus")} Add bill</button></div>
-        ${sharedBills.length ? `<div class="shared-summary"><span><small>Shared total</small><strong>${money(sharedTotal)}</strong></span><span><small>${escapeHTML(state.profile.name)} pays</small><strong>${money(activeShared)}</strong></span><span><small>${escapeHTML(partner?.name || "Partner")} pays</small><strong>${money(partnerShared)}</strong></span></div>` : ""}
+        <div class="section-heading"><div><h2>Bills & subscriptions</h2><p>${selectedPeriodTitle()} estimate ${money(periodBillTotal)} · individual amounts are shown below</p></div><button class="button small secondary" data-action="add-bill">${icon("plus")} Add bill</button></div>
+        ${sharedBills.length ? `<div class="shared-summary"><span><small>Shared this ${selectedPeriodName()}</small><strong>${money(sharedTotal)}</strong></span><span><small>${escapeHTML(state.profile.name)} pays</small><strong>${money(activeShared)}</strong></span><span><small>${escapeHTML(partner?.name || "Partner")} pays</small><strong>${money(partnerShared)}</strong></span></div>` : ""}
         ${bills.length ? `<div class="bill-list">${bills.map((bill) => renderBillRow(bill, true)).join("")}</div>` : renderEmpty("calendar", "No recurring bills", "Add rent, utilities and subscriptions to keep them visible.", "Add a bill", "add-bill")}
       </article>
       <article class="card" style="margin-top:22px">
@@ -489,7 +538,7 @@ function renderMore() {
         <p>Brady Budget combines envelope planning with a simple safe-to-spend number. Household data is stored on your private Mission Control server and synced between signed-in phones.</p>
         <p><strong style="color:white">Important:</strong> this is a planning tool, not financial advice. Keep regular backups for an additional copy of your data.</p>
         ${deferredInstallPrompt ? `<button class="button accent block" data-action="install-app" style="margin-top:12px">Install Brady Budget</button>` : ""}
-        <div class="about-version">Version 3.2 · Mixed-store shopping</div>
+        <div class="about-version">Version 3.3 · Flexible period views</div>
       </article>
     </aside>
   </section>`;
@@ -519,7 +568,7 @@ function onboardingWelcome() {
   return `<h1 id="onboarding-title">Know what’s safe to spend.</h1>
     <p>Brady Budget protects bills and savings first, then gives you one calm number for everything else. Your household data syncs securely through Mission Control.</p>
     <ul class="benefit-list">
-      <li><span>${icon("check")}</span> A flexible monthly plan built around real life</li>
+      <li><span>${icon("check")}</span> Weekly, fortnightly or monthly views</li>
       <li><span>${icon("check")}</span> Bills, transactions and savings goals in one place</li>
       <li><span>${icon("check")}</span> Offline access with JSON and CSV backups</li>
     </ul>
@@ -576,9 +625,9 @@ function howToGuideModal() {
     size: "guide-modal",
     body: `<div class="how-to-guide">
       <section class="guide-step"><span class="guide-number">1</span><div><h3>Add the money you get paid</h3><p>When you first start, type how much money you get and how often you get it. To change it later, tap <strong>More</strong>, find <strong>Profile &amp; preferences</strong>, then tap <strong>Edit</strong>.</p></div></section>
-      <section class="guide-step"><span class="guide-number">2</span><div><h3>Plan where your money will go</h3><p>Tap <strong>Plan</strong>. Tap a row such as Food or Transport. Type how much money you want to use for it each month, then tap <strong>Save category</strong>.</p><ul><li>A category means one kind of spending, such as Food.</li><li><strong>Ready to assign</strong> is money that does not have a job yet. Keep it at $0 or higher.</li></ul></div></section>
+      <section class="guide-step"><span class="guide-number">2</span><div><h3>Plan where your money will go</h3><p>Tap <strong>Plan</strong>. Tap a row such as Food or Transport. Type how much money you want to use for it each month, then tap <strong>Save category</strong>. The app works out the weekly or fortnightly share for you.</p><ul><li>A category means one kind of spending, such as Food.</li><li><strong>Ready to assign</strong> is money that does not have a job yet. Keep it at $0 or higher.</li></ul></div></section>
       <section class="guide-step"><span class="guide-number">3</span><div><h3>Add money you get or spend</h3><p>Tap <strong>Activity</strong>, then tap <strong>Add</strong>. Choose <strong>Income</strong> when you get money. Choose <strong>Expense</strong> when you spend money. Add the name, amount, date and category, then save it.</p></div></section>
-      <section class="guide-step"><span class="guide-number">4</span><div><h3>Check how you are doing</h3><p>Tap <strong>Overview</strong>. <strong>Safe to spend</strong> shows money that is still free after your plan, bills and goals. Tap the calendar at the top to look at a different month.</p></div></section>
+      <section class="guide-step"><span class="guide-number">4</span><div><h3>Choose the dates you want to see</h3><p>Tap the <strong>calendar</strong> at the top. Choose <strong>Weekly</strong>, <strong>Fortnightly</strong> or <strong>Monthly</strong>. Choose a date, then tap <strong>View budget</strong>. This choice is used on every budget page.</p><p>Tap <strong>Overview</strong>. <strong>Safe to spend</strong> shows money that is still free for the dates you chose. The shared shopping checklist stays on the current shopping week so both phones see the same list.</p></div></section>
       <section class="guide-step"><span class="guide-number">5</span><div><h3>Keep track of bills and saving goals</h3><p>For a bill, tap <strong>More</strong>, then <strong>Add bill</strong>. Add the amount and the date it must be paid. To save for something, tap <strong>Goals</strong>, then <strong>New goal</strong>.</p><ul><li>If the share option is shown, enter the full bill and the part you will pay. The other part is worked out for you.</li></ul></div></section>
       <section class="guide-step"><span class="guide-number">6</span><div><h3>Make a shopping list</h3><p>Tap <strong>Shopping</strong>, then follow these steps:</p><ul><li>Tap <strong>Set budget</strong> and enter the most you want to spend.</li><li>Tap <strong>Add item</strong> and choose the store.</li><li>Type the item. The app will suggest a price. Change it if you know a better price.</li><li>Add the amount you need. Turn on <strong>Add every week</strong> for things you buy often.</li><li>Tap <strong>Add item</strong>. The expected total changes as items are added.</li><li>At the shop, tap the empty tick beside an item when it goes into your trolley.</li></ul></div></section>
       <section class="guide-step"><span class="guide-number">7</span><div><h3>Use your saved price again</h3><p>If the app does not know a product, type its name and add your own price. Next time you choose that store, it will appear as a <strong>Saved product</strong>. The shopping list also updates on the other phone using Brady Budget.</p></div></section>
@@ -587,15 +636,26 @@ function howToGuideModal() {
   });
 }
 
-function monthPickerModal() {
+function budgetPeriodModal() {
   openModal({
-    title: "Choose month",
-    subtitle: "Pick the month you want to view.",
-    body: `<form data-form="month-picker">
-      <div class="field"><label for="mobile-month-picker">Month</label><input id="mobile-month-picker" name="month" type="month" value="${escapeHTML(state.currentMonth)}" required /></div>
-      <div class="modal-actions"><button class="button secondary" type="button" data-action="close-modal">Cancel</button><button class="button" type="submit">View month</button></div>
+    title: "Choose budget view",
+    subtitle: "Choose how much time you want to see across the whole app. The shared shopping checklist stays on the current week.",
+    body: `<form data-form="period-picker">
+      <div class="field"><span>Show my budget</span><div class="segmented period-segmented">
+        ${["weekly", "fortnightly", "monthly"].map((kind) => `<label><input type="radio" name="periodKind" value="${kind}" ${viewPeriod.kind === kind ? "checked" : ""} /><span>${periodTitle(kind)}</span></label>`).join("")}
+      </div></div>
+      <div class="field"><label for="period-anchor">Choose a date</label><input id="period-anchor" name="anchor" type="date" value="${escapeHTML(viewPeriod.anchor)}" required /><span class="hint">Weeks and fortnights start on Monday. For monthly view, any date in the month works.</span></div>
+      <div class="period-preview">${icon("calendar")}<span><small>You will see</small><strong id="period-preview-label">${periodLabel(viewPeriod)}</strong></span></div>
+      <div class="modal-actions"><button class="button secondary" type="button" data-action="close-modal">Cancel</button><button class="button" type="submit">View budget</button></div>
     </form>`,
   });
+}
+
+function updatePeriodPreview() {
+  const anchor = $("#period-anchor")?.value;
+  const kind = $("input[name='periodKind']:checked", $("#modal-root"))?.value;
+  const preview = $("#period-preview-label");
+  if (anchor && kind && preview) preview.textContent = periodLabel({ kind, anchor });
 }
 
 function categoryOptions(selected = "") {
@@ -672,7 +732,7 @@ function billModal(bill = null) {
   const totalAmount = item.shared ? item.sharedTotal : item.amount;
   openModal({
     title: bill ? "Edit bill" : "Add a recurring bill",
-    subtitle: canShare ? "Keep it individual or split the total between both profiles." : "Bills stay visible and protected in your monthly plan.",
+    subtitle: canShare ? "Keep it individual or split the total between both profiles." : "Bills stay visible and protected in every budget view.",
     body: `<form data-form="bill"><input type="hidden" name="id" value="${escapeHTML(item.id)}" />
       <div class="form-grid">
         <div class="field full"><label for="bill-name">Bill or subscription</label><input id="bill-name" name="name" value="${escapeHTML(item.name)}" placeholder="Energy" required /></div>
@@ -895,10 +955,14 @@ async function handleSubmit(event) {
   const data = new FormData(form);
   const type = form.dataset.form;
 
-  if (type === "month-picker") {
-    state.currentMonth = String(data.get("month") || monthKey());
+  if (type === "period-picker") {
+    setViewPeriod({
+      kind: String(data.get("periodKind") || "monthly"),
+      anchor: String(data.get("anchor") || toLocalISO()),
+    });
     closeModal();
-    persist();
+    renderApp();
+    toast(`Showing the ${viewPeriod.kind} budget.`);
     return;
   }
   if (type === "onboarding-profile") {
@@ -1337,6 +1401,7 @@ function init() {
     handleFileChange(event);
     if (event.target.id === "transaction-filter") filterTransactions();
     if (event.target.id === "bill-sharing") updateBillSplitPreview();
+    if (event.target.name === "periodKind") updatePeriodPreview();
     if (event.target.id === "shopping-item-store") {
       const priceInput = $("#shopping-cost");
       if (priceInput) priceInput.dataset.priceSource = "";
@@ -1349,12 +1414,13 @@ function init() {
     if (event.target.id === "shopping-name") updateShoppingEstimate();
     if (event.target.id === "shopping-quantity") updateShoppingLineEstimate();
     if (event.target.id === "shopping-cost") markShoppingPriceManual();
+    if (event.target.id === "period-anchor") updatePeriodPreview();
   });
   document.addEventListener("focusin", (event) => {
     if (event.target.id === "shopping-name") renderShoppingSuggestions(event.target.value);
   });
   $("#how-to-control").addEventListener("click", howToGuideModal);
-  $("#month-control").addEventListener("click", monthPickerModal);
+  $("#month-control").addEventListener("click", budgetPeriodModal);
   $("#profile-button").addEventListener("click", profileSwitcherModal);
   $("#quick-add").addEventListener("click", () => activeView() === "shopping" ? shoppingItemModal() : transactionModal());
   addEventListener("hashchange", () => {

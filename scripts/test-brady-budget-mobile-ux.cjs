@@ -148,15 +148,62 @@ async function assertMobileLayout(page, label) {
     await page.screenshot({ path: path.join(previewDir, 'brady-budget-how-to-guide.png'), fullPage: false });
     await page.getByRole('button', { name: 'Got it' }).click();
 
-    await page.getByRole('button', { name: 'Choose month' }).click();
-    await page.locator('#mobile-month-picker').waitFor();
-    await page.locator('#mobile-month-picker').fill('2026-07');
-    await page.getByRole('button', { name: 'View month', exact: true }).click();
-    await page.locator('#mobile-month-picker').waitFor({ state: 'detached' });
-    await page.getByRole('button', { name: 'Choose month' }).click();
-    const reopenedMonth = await page.locator('#mobile-month-picker').inputValue();
-    if (reopenedMonth !== '2026-07') fail('Calendar button did not retain the selected month', reopenedMonth);
+    await page.getByRole('button', { name: /Choose budget period/ }).click();
+    await page.getByLabel('Weekly').check();
+    await page.locator('#period-anchor').fill('2026-07-15');
+    if ((await page.locator('#period-preview-label').textContent()).trim() !== '13–19 July 2026') fail('Weekly date preview is incorrect');
+    await page.screenshot({ path: path.join(previewDir, 'brady-budget-period-picker.png'), fullPage: false });
+    await page.getByRole('button', { name: 'View budget', exact: true }).click();
+    await page.locator('#period-anchor').waitFor({ state: 'detached' });
+    await page.getByRole('heading', { name: 'Weekly snapshot' }).waitFor();
+
+    await page.locator('.mobile-nav').getByText('Plan', { exact: true }).click();
+    await page.waitForFunction(() => document.querySelector('#page-title')?.textContent === 'Weekly plan');
+    if ((await page.locator('#page-title').textContent()).trim() !== 'Weekly plan') fail('Plan page did not use the weekly view');
+    await page.locator('.mobile-nav').getByText('Overview', { exact: true }).click();
+    await page.getByRole('button', { name: /Choose budget period/ }).click();
+    const reopenedPeriod = {
+      kind: await page.locator('input[name="periodKind"]:checked').inputValue(),
+      anchor: await page.locator('#period-anchor').inputValue(),
+    };
+    if (reopenedPeriod.kind !== 'weekly' || reopenedPeriod.anchor !== '2026-07-15') fail('Calendar did not retain the selected weekly view', reopenedPeriod);
+
+    await page.getByLabel('Fortnightly').check();
+    if ((await page.locator('#period-preview-label').textContent()).trim() !== '13–26 July 2026') fail('Fortnightly date preview is incorrect');
+    await page.getByRole('button', { name: 'View budget', exact: true }).click();
+    await page.getByRole('heading', { name: 'Fortnightly snapshot' }).waitFor();
+    for (const view of ['plan', 'activity', 'goals', 'shopping', 'more', 'overview']) {
+      await page.locator('.mobile-nav').getByText(view[0].toUpperCase() + view.slice(1), { exact: true }).click();
+      const periodControlName = await page.locator('#month-control').getAttribute('aria-label');
+      if (!periodControlName.includes('Currently fortnightly')) fail(`${view} did not keep the app-wide fortnightly view`, periodControlName);
+    }
+
+    await page.getByRole('button', { name: /Choose budget period/ }).click();
+    await page.getByLabel('Monthly').check();
+    await page.getByRole('button', { name: 'View budget', exact: true }).click();
+    await page.getByRole('heading', { name: 'Monthly snapshot' }).waitFor();
+
+    await page.setViewportSize({ width: 320, height: 568 });
+    await page.getByRole('button', { name: /Choose budget period/ }).click();
+    await page.waitForTimeout(350);
+    const periodPickerAudit = await page.evaluate(() => {
+      const modal = document.querySelector('.modal');
+      const rect = modal.getBoundingClientRect();
+      const choices = [...document.querySelectorAll('.period-segmented span')].map((choice) => choice.getBoundingClientRect());
+      return {
+        left: rect.left,
+        right: rect.right,
+        bottom: rect.bottom,
+        viewportWidth: innerWidth,
+        viewportHeight: innerHeight,
+        smallestChoiceHeight: Math.min(...choices.map((choice) => choice.height)),
+      };
+    });
+    if (periodPickerAudit.left < -1 || periodPickerAudit.right > periodPickerAudit.viewportWidth + 1 || periodPickerAudit.bottom > periodPickerAudit.viewportHeight + 1) fail('Budget period picker escapes a small iPhone viewport', periodPickerAudit);
+    if (periodPickerAudit.smallestChoiceHeight < 44) fail('Budget period choices are too small to tap', periodPickerAudit);
+    await page.screenshot({ path: path.join(previewDir, 'brady-budget-period-picker-320px.png'), fullPage: false });
     await page.getByRole('button', { name: 'Close' }).click();
+    await page.setViewportSize({ width: 390, height: 844 });
 
     await page.locator('.mobile-nav').getByText('Shopping', { exact: true }).click();
     await page.getByText('Shared grocery plan', { exact: true }).waitFor();
@@ -282,7 +329,7 @@ async function assertMobileLayout(page, label) {
     await page.screenshot({ path: path.join(previewDir, 'brady-budget-field-test-overview-dark.png'), fullPage: false });
     if (pageErrors.length) fail('Mobile browser errors', pageErrors);
 
-    console.log(JSON.stringify({ reopenedMonth, formAudit, layouts, quickAddByView, compactViewLayouts, activeNavigation, fieldTestOverview }, null, 2));
+    console.log(JSON.stringify({ reopenedPeriod, periodPickerAudit, formAudit, layouts, quickAddByView, compactViewLayouts, activeNavigation, fieldTestOverview }, null, 2));
   } finally {
     await browser.close();
   }

@@ -32,6 +32,91 @@ export function monthLabel(key, locale = "en-AU", short = false) {
   return new Intl.DateTimeFormat(locale, { month: short ? "short" : "long", year: "numeric" }).format(parseLocalDate(`${key}-01`));
 }
 
+export const PERIOD_KINDS = ["weekly", "fortnightly", "monthly"];
+
+export function normalisePeriodSelection(selection, fallbackMonth = monthKey()) {
+  if (typeof selection === "string") {
+    const anchor = /^\d{4}-\d{2}$/.test(selection) ? `${selection}-01` : selection;
+    return { kind: "monthly", anchor };
+  }
+  const kind = PERIOD_KINDS.includes(selection?.kind) ? selection.kind : "monthly";
+  const anchor = /^\d{4}-\d{2}-\d{2}$/.test(String(selection?.anchor || ""))
+    ? String(selection.anchor)
+    : `${fallbackMonth}-01`;
+  return { kind, anchor };
+}
+
+export function periodScale(kind = "monthly") {
+  return kind === "weekly" ? 12 / 52 : kind === "fortnightly" ? 12 / 26 : 1;
+}
+
+export function periodBounds(selection = {}) {
+  const normalised = normalisePeriodSelection(selection);
+  const anchorDate = parseLocalDate(normalised.anchor);
+  const startDate = new Date(anchorDate);
+  const endDate = new Date(anchorDate);
+
+  if (normalised.kind === "monthly") {
+    startDate.setDate(1);
+    endDate.setMonth(endDate.getMonth() + 1, 0);
+  } else {
+    const day = startDate.getDay();
+    startDate.setDate(startDate.getDate() - (day === 0 ? 6 : day - 1));
+    endDate.setTime(startDate.getTime());
+    endDate.setDate(endDate.getDate() + (normalised.kind === "fortnightly" ? 13 : 6));
+  }
+
+  return {
+    kind: normalised.kind,
+    anchor: toLocalISO(anchorDate),
+    start: toLocalISO(startDate),
+    end: toLocalISO(endDate),
+    startDate,
+    endDate,
+    days: Math.round((endDate - startDate) / 86_400_000) + 1,
+    scale: periodScale(normalised.kind),
+  };
+}
+
+export function periodNoun(kind = "monthly") {
+  return kind === "weekly" ? "week" : kind === "fortnightly" ? "fortnight" : "month";
+}
+
+export function periodTitle(kind = "monthly") {
+  return kind === "weekly" ? "Weekly" : kind === "fortnightly" ? "Fortnightly" : "Monthly";
+}
+
+export function periodLabel(selection, locale = "en-AU", short = false) {
+  const period = periodBounds(selection);
+  if (period.kind === "monthly") return monthLabel(period.start.slice(0, 7), locale, short);
+
+  const start = period.startDate;
+  const end = period.endDate;
+  const sameYear = start.getFullYear() === end.getFullYear();
+  const sameMonth = sameYear && start.getMonth() === end.getMonth();
+  const monthStyle = short ? "short" : "long";
+  const format = (date, options) => new Intl.DateTimeFormat(locale, options).format(date);
+
+  if (short) {
+    if (sameMonth) return `${start.getDate()}–${format(end, { day: "numeric", month: monthStyle })}`;
+    if (sameYear) return `${format(start, { day: "numeric", month: monthStyle })}–${format(end, { day: "numeric", month: monthStyle })}`;
+    return `${format(start, { day: "numeric", month: monthStyle, year: "numeric" })}–${format(end, { day: "numeric", month: monthStyle, year: "numeric" })}`;
+  }
+
+  if (sameMonth) return `${start.getDate()}–${format(end, { day: "numeric", month: monthStyle, year: "numeric" })}`;
+  if (sameYear) return `${format(start, { day: "numeric", month: monthStyle })} – ${format(end, { day: "numeric", month: monthStyle, year: "numeric" })}`;
+  return `${format(start, { day: "numeric", month: monthStyle, year: "numeric" })} – ${format(end, { day: "numeric", month: monthStyle, year: "numeric" })}`;
+}
+
+export function scaleMonthlyAmount(amount, kind = "monthly") {
+  return (Number(amount) || 0) * periodScale(kind);
+}
+
+export function recurringAmountForPeriod(amount, frequency = "monthly", kind = "monthly") {
+  const monthlyOccurrences = { weekly: 52 / 12, fortnightly: 26 / 12, monthly: 1, quarterly: 1 / 3, yearly: 1 / 12 };
+  return Math.max(0, Number(amount) || 0) * (monthlyOccurrences[frequency] ?? 1) * periodScale(kind);
+}
+
 export function formatCurrency(amount, currency = "AUD", options = {}) {
   const { compact = false, maximumFractionDigits = 0 } = options;
   return new Intl.NumberFormat("en-AU", {
@@ -81,8 +166,16 @@ export function transactionsForMonth(transactions = [], key) {
   return transactions.filter((transaction) => String(transaction.date).slice(0, 7) === key);
 }
 
-export function spendByCategory(transactions = [], key) {
-  return transactionsForMonth(transactions, key)
+export function transactionsForPeriod(transactions = [], selection = {}) {
+  const period = periodBounds(selection);
+  return transactions.filter((transaction) => {
+    const date = String(transaction.date).slice(0, 10);
+    return date >= period.start && date <= period.end;
+  });
+}
+
+export function spendByCategory(transactions = [], selection = {}) {
+  return transactionsForPeriod(transactions, selection)
     .filter((transaction) => transaction.type === "expense" && !transaction.excluded)
     .reduce((totals, transaction) => {
       const categoryId = transaction.categoryId || "uncategorised";
@@ -91,23 +184,24 @@ export function spendByCategory(transactions = [], key) {
     }, {});
 }
 
-export function calculateBudget(state, key = state.currentMonth) {
+export function calculateBudget(state, selection = { kind: "monthly", anchor: `${state.currentMonth}-01` }) {
+  const period = periodBounds(normalisePeriodSelection(selection, state.currentMonth));
   const categories = state.categories.filter((category) => !category.archived);
-  const monthTransactions = transactionsForMonth(state.transactions, key).filter((transaction) => !transaction.excluded);
-  const spending = spendByCategory(state.transactions, key);
-  const expenseTotal = monthTransactions
+  const periodTransactions = transactionsForPeriod(state.transactions, period).filter((transaction) => !transaction.excluded);
+  const spending = spendByCategory(state.transactions, period);
+  const expenseTotal = periodTransactions
     .filter((transaction) => transaction.type === "expense")
     .reduce((sum, transaction) => sum + Math.abs(Number(transaction.amount) || 0), 0);
-  const incomeReceived = monthTransactions
+  const incomeReceived = periodTransactions
     .filter((transaction) => transaction.type === "income")
     .reduce((sum, transaction) => sum + Math.abs(Number(transaction.amount) || 0), 0);
-  const expectedIncome = Number(state.profile.monthlyIncome) || 0;
-  const categoryBudget = categories.reduce((sum, category) => sum + Math.max(0, Number(category.budget) || 0), 0);
+  const expectedIncome = scaleMonthlyAmount(state.profile.monthlyIncome, period.kind);
+  const categoryBudget = categories.reduce((sum, category) => sum + scaleMonthlyAmount(Math.max(0, Number(category.budget) || 0), period.kind), 0);
   const goalContributions = state.goals
     .filter((goal) => !goal.archived)
-    .reduce((sum, goal) => sum + Math.max(0, Number(goal.monthlyContribution) || 0), 0);
+    .reduce((sum, goal) => sum + scaleMonthlyAmount(Math.max(0, Number(goal.monthlyContribution) || 0), period.kind), 0);
   const fixedCategories = categories.filter((category) => category.group === "fixed");
-  const fixedBudget = fixedCategories.reduce((sum, category) => sum + Math.max(0, Number(category.budget) || 0), 0);
+  const fixedBudget = fixedCategories.reduce((sum, category) => sum + scaleMonthlyAmount(Math.max(0, Number(category.budget) || 0), period.kind), 0);
   const fixedSpent = fixedCategories.reduce((sum, category) => sum + (spending[category.id] || 0), 0);
   const variableSpent = expenseTotal - fixedSpent;
   const fixedReserve = Math.max(fixedBudget, fixedSpent);
@@ -115,16 +209,18 @@ export function calculateBudget(state, key = state.currentMonth) {
   const readyToAssign = expectedIncome - categoryBudget - goalContributions;
   const categoryRows = categories.map((category) => {
     const spent = spending[category.id] || 0;
-    const budget = Math.max(0, Number(category.budget) || 0);
+    const budget = scaleMonthlyAmount(Math.max(0, Number(category.budget) || 0), period.kind);
     return { ...category, spent, remaining: budget - spent, percent: budget ? (spent / budget) * 100 : spent ? 100 : 0 };
   });
   const today = new Date();
-  const viewed = parseLocalDate(`${key}-01`);
-  const isCurrentMonth = key === monthKey(today);
-  const daysInMonth = new Date(viewed.getFullYear(), viewed.getMonth() + 1, 0).getDate();
-  const daysLeft = isCurrentMonth ? Math.max(1, daysInMonth - today.getDate() + 1) : daysInMonth;
+  const todayKey = toLocalISO(today);
+  const isCurrentPeriod = todayKey >= period.start && todayKey <= period.end;
+  const daysLeft = isCurrentPeriod
+    ? Math.max(1, Math.round((period.endDate - parseLocalDate(todayKey)) / 86_400_000) + 1)
+    : period.days;
 
   return {
+    period,
     expectedIncome,
     incomeReceived,
     expenseTotal,
@@ -138,6 +234,7 @@ export function calculateBudget(state, key = state.currentMonth) {
     dailySafe: safeToSpend / daysLeft,
     readyToAssign,
     daysLeft,
+    isCurrentPeriod,
     categoryRows,
     spending,
     spentPercent: expectedIncome ? (expenseTotal / expectedIncome) * 100 : 0,

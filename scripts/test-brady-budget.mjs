@@ -13,6 +13,7 @@ globalThis.sessionStorage = new MemoryStorage();
 globalThis.localStorage = new MemoryStorage();
 
 const { mergeBudgetStates } = await import('../public/brady-budget/js/storage.js');
+const { calculateBudget, periodBounds, periodLabel, recurringAmountForPeriod } = await import('../public/brady-budget/js/calculations.js');
 const { ensureHousehold, shoppingWeekKey } = await import('../public/brady-budget/js/profiles.js');
 const { baseState } = await import('../public/brady-budget/js/seed.js');
 const { estimateShoppingPrice, rememberShoppingPrice, suggestShoppingProducts } = await import('../public/brady-budget/js/pricing.js');
@@ -86,6 +87,45 @@ test('shopping weeks start on Monday in local time', () => {
   assert.equal(shoppingWeekKey(new Date(2026, 7, 3)), '2026-08-03');
 });
 
+test('weekly, fortnightly, and monthly views use the correct dates and planning shares', () => {
+  const weekly = periodBounds({ kind: 'weekly', anchor: '2026-08-05' });
+  const fortnightly = periodBounds({ kind: 'fortnightly', anchor: '2026-08-05' });
+  const monthly = periodBounds({ kind: 'monthly', anchor: '2026-08-05' });
+  assert.deepEqual([weekly.start, weekly.end, weekly.days], ['2026-08-03', '2026-08-09', 7]);
+  assert.deepEqual([fortnightly.start, fortnightly.end, fortnightly.days], ['2026-08-03', '2026-08-16', 14]);
+  assert.deepEqual([monthly.start, monthly.end, monthly.days], ['2026-08-01', '2026-08-31', 31]);
+  assert.equal(periodLabel({ kind: 'weekly', anchor: '2026-08-01' }), '27 July – 2 August 2026');
+
+  const state = baseState();
+  state.profile.monthlyIncome = 5200;
+  state.categories = [
+    { id: 'housing', name: 'Housing', group: 'fixed', budget: 520, archived: false },
+    { id: 'groceries', name: 'Groceries', group: 'everyday', budget: 1040, archived: false },
+  ];
+  state.goals = [{ id: 'goal', monthlyContribution: 260, archived: false }];
+  state.transactions = [
+    { id: 'income', date: '2026-08-03', amount: 600, type: 'income' },
+    { id: 'inside-week', date: '2026-08-04', amount: 100, type: 'expense', categoryId: 'groceries' },
+    { id: 'second-week', date: '2026-08-10', amount: 999, type: 'expense', categoryId: 'groceries' },
+  ];
+
+  const weeklyBudget = calculateBudget(state, weekly);
+  assert.equal(weeklyBudget.expectedIncome, 1200);
+  assert.equal(weeklyBudget.categoryBudget, 360);
+  assert.equal(weeklyBudget.goalContributions, 60);
+  assert.equal(weeklyBudget.expenseTotal, 100);
+  assert.equal(weeklyBudget.safeToSpend, 920);
+  assert.equal(weeklyBudget.readyToAssign, 780);
+
+  const fortnightlyBudget = calculateBudget(state, fortnightly);
+  assert.equal(fortnightlyBudget.expectedIncome, 2400);
+  assert.equal(fortnightlyBudget.categoryBudget, 720);
+  assert.equal(fortnightlyBudget.goalContributions, 120);
+  assert.equal(fortnightlyBudget.expenseTotal, 1099);
+  assert.equal(Math.round(recurringAmountForPeriod(100, 'weekly', 'weekly')), 100);
+  assert.equal(Math.round(recurringAmountForPeriod(100, 'weekly', 'fortnightly')), 200);
+});
+
 test('Brady Budget branding and yellow controls contain no white foreground artwork', async () => {
   const [styles, icon, index] = await Promise.all([
     readFile(new URL('../public/brady-budget/styles.css', import.meta.url), 'utf8'),
@@ -118,8 +158,12 @@ test('mobile layout protects touch targets, navigation, forms, and bottom conten
   assert.match(app, /quickAddViews = new Set\(\["overview", "activity", "shopping"\]\)/);
   assert.match(app, /input\.inputMode = input\.step === "1" \? "numeric" : "decimal"/);
   assert.match(app, /aria-pressed="\$\{item\.checked\}"/);
-  assert.match(app, /function monthPickerModal\(\)/);
-  assert.match(app, /data-form="month-picker"/);
+  assert.match(app, /function budgetPeriodModal\(\)/);
+  assert.match(app, /data-form="period-picker"/);
+  assert.match(app, /name="periodKind"/);
+  assert.match(app, /Weekly/);
+  assert.match(app, /Fortnightly/);
+  assert.match(app, /Monthly/);
   assert.match(app, /id="shopping-item-store"/);
   assert.match(app, /shopping-store-breakdown/);
   assert.doesNotMatch(app, /id="shopping-store"/);
@@ -132,7 +176,7 @@ test('mobile layout protects touch targets, navigation, forms, and bottom conten
   assert.match(app, /data-action="dismiss-household-notice"/);
   assert.match(app, /aria-label="Close individual budget message"/);
   assert.match(storage, /if \(remote\.status === status\) return;/);
-  assert.match(serviceWorker, /brady-budget-v11/);
+  assert.match(serviceWorker, /brady-budget-v12/);
 
   const manifest = JSON.parse(manifestSource);
   assert.equal(manifest.id, '/budget');
@@ -146,11 +190,14 @@ test('mobile layout protects touch targets, navigation, forms, and bottom conten
   assert.match(serviceWorker, /!response\.redirected/);
 
   const guideStart = app.indexOf('function howToGuideModal');
-  const guideEnd = app.indexOf('function monthPickerModal', guideStart);
+  const guideEnd = app.indexOf('function budgetPeriodModal', guideStart);
   const guide = app.slice(guideStart, guideEnd);
   assert.match(guide, /How to use Brady Budget/);
   assert.match(guide, /Plan where your money will go/);
   assert.match(guide, /Make a shopping list/);
+  assert.match(guide, /Weekly/);
+  assert.match(guide, /Fortnightly/);
+  assert.match(guide, /Monthly/);
   assert.match(guide, /Saved product/);
   assert.doesNotMatch(guide, /Add partner|Create profile|partner profile/i);
   assert.match(serviceWorker, /\.\/js\/pricing\.js/);

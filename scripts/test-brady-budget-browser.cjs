@@ -113,6 +113,21 @@ async function addShoppingItem(page, name, recurring = false, storeId = 'aldi', 
     if (/add partner|create profile|partner profile/i.test(guideText)) throw new Error('The in-app guide includes partner-profile setup instructions.');
     await pageA.getByRole('button', { name: 'Got it' }).click();
 
+    await pageA.getByRole('button', { name: /Choose budget period/ }).click();
+    await pageA.getByLabel('Fortnightly').check();
+    await pageA.locator('#period-anchor').fill('2026-08-05');
+    if ((await pageA.locator('#period-preview-label').textContent()).trim() !== '27 July – 9 August 2026') throw new Error('The fortnightly preview has the wrong date range.');
+    await pageA.getByRole('button', { name: 'View budget', exact: true }).click();
+    await pageA.getByRole('heading', { name: 'Fortnightly snapshot' }).waitFor();
+    for (const [view, title] of [['plan', 'Fortnightly plan'], ['activity', 'Activity'], ['goals', 'Savings goals'], ['shopping', 'Shopping list'], ['more', 'More'], ['overview', 'Overview']]) {
+      await pageA.locator('.mobile-nav').getByText(view[0].toUpperCase() + view.slice(1), { exact: true }).click();
+      await pageA.waitForFunction((expectedTitle) => document.querySelector('#page-title')?.textContent === expectedTitle, title);
+      if (!(await pageA.locator('#month-control').getAttribute('aria-label')).includes('Currently fortnightly')) throw new Error(`${view} lost the app-wide fortnightly selection.`);
+    }
+    await pageA.reload({ waitUntil: 'networkidle' });
+    await pageA.locator('body:not(.auth-pending)').waitFor({ timeout: 15_000 });
+    if (!(await pageA.locator('#month-control').getAttribute('aria-label')).includes('Currently fortnightly')) throw new Error('The selected period was not remembered on the phone.');
+
     await pageA.getByRole('button', { name: 'Switch budget profile' }).click();
     await pageA.getByRole('button', { name: 'Add partner' }).click();
     await pageA.locator('#partner-name').fill('Alex');
@@ -274,6 +289,7 @@ async function addShoppingItem(page, name, recurring = false, storeId = 'aldi', 
       homeScreenLaunchFixed: true,
       serviceWorkerColdLaunchFixed: true,
       dismissibleBudgetNotice: true,
+      appWidePeriodSelection: true,
       predictedMilkPrice,
       correctedPriceLearnedAcrossPhones: true,
       concurrentItemsMerged: true,
