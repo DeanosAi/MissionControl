@@ -75,6 +75,8 @@ const SYNC_LABELS = {
   offline: "Offline — changes queued",
 };
 
+const HOUSEHOLD_NOTICE_DISMISSED_KEY = "brady-budget:household-notice-dismissed";
+
 const GROUPS = {
   fixed: { label: "Fixed costs", note: "Protected first", colour: "#79b8be" },
   everyday: { label: "Everyday spending", note: "Flexible this month", colour: "#ff8f70" },
@@ -201,8 +203,15 @@ function renderOverview() {
   const demoNotice = state.profile.demoMode
     ? `<div class="notice">${icon("info")}<span>You’re exploring sample data. Nothing here is connected to a real bank.</span><button class="text-button" data-action="start-fresh">Start fresh</button></div>`
     : "";
-  const householdNotice = state.household.profiles.length > 1
-    ? `<div class="notice">${icon("info")}<span>You’re viewing <strong>${escapeHTML(state.profile.name)}’s</strong> individual budget. The other profile’s income, activity, bills and goals are kept separate.</span><button class="text-button" data-action="switch-profile">Switch</button></div>`
+  const householdNoticeDismissed = (() => {
+    try {
+      return localStorage.getItem(HOUSEHOLD_NOTICE_DISMISSED_KEY) === "yes";
+    } catch {
+      return false;
+    }
+  })();
+  const householdNotice = state.household.profiles.length > 1 && !householdNoticeDismissed
+    ? `<div class="notice individual-budget-notice">${icon("info")}<span>You’re viewing <strong>${escapeHTML(state.profile.name)}’s</strong> individual budget. The other profile’s income, activity, bills and goals are kept separate.</span><button class="notice-dismiss" type="button" data-action="dismiss-household-notice" aria-label="Close individual budget message">${icon("close")}</button></div>`
     : "";
 
   return `${demoNotice}${householdNotice}${setupNotice}
@@ -1169,6 +1178,14 @@ function handleClick(event) {
   else if (action === "go-plan") location.hash = "plan";
   else if (action === "go-activity") location.hash = "activity";
   else if (action === "go-goals") location.hash = "goals";
+  else if (action === "dismiss-household-notice") {
+    try {
+      localStorage.setItem(HOUSEHOLD_NOTICE_DISMISSED_KEY, "yes");
+    } catch {
+      // The notice can still close for this visit if device storage is unavailable.
+    }
+    button.closest(".notice")?.remove();
+  }
   else if (action === "switch-profile" || action === "manage-profiles") profileSwitcherModal();
   else if (action === "add-profile") addProfileModal();
   else if (action === "select-profile") {

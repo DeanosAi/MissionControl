@@ -132,6 +132,15 @@ async function addShoppingItem(page, name, recurring = false, storeId = 'aldi', 
       throw new Error('Phone profile selection leaked to the other phone.');
     }
 
+    const individualBudgetNotice = pageA.locator('.individual-budget-notice');
+    await individualBudgetNotice.waitFor({ timeout: 5_000 });
+    await individualBudgetNotice.getByRole('button', { name: 'Close individual budget message' }).click();
+    if (await individualBudgetNotice.count()) throw new Error('The individual-budget notice did not close.');
+    await pageA.locator('.mobile-nav').getByText('Activity', { exact: true }).click();
+    await pageA.locator('.mobile-nav').getByText('Overview', { exact: true }).click();
+    await pageA.waitForFunction(() => location.hash === '#overview');
+    if (await pageA.locator('.individual-budget-notice').count()) throw new Error('The individual-budget notice did not stay dismissed on the device.');
+
     await openShopping(pageA);
     await openShopping(pageB);
     await pageA.getByRole('button', { name: 'Set budget' }).click();
@@ -264,6 +273,7 @@ async function addShoppingItem(page, name, recurring = false, storeId = 'aldi', 
       simpleHowToGuide: true,
       homeScreenLaunchFixed: true,
       serviceWorkerColdLaunchFixed: true,
+      dismissibleBudgetNotice: true,
       predictedMilkPrice,
       correctedPriceLearnedAcrossPhones: true,
       concurrentItemsMerged: true,
