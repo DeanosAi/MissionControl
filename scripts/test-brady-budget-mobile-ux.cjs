@@ -73,6 +73,25 @@ async function assertMobileLayout(page, label) {
     await page.getByRole('button', { name: 'Explore sample' }).click();
     await page.getByText('Safe to spend', { exact: true }).waitFor();
 
+    await page.getByRole('button', { name: 'How to use Brady Budget' }).click();
+    await page.getByRole('heading', { name: 'How to use Brady Budget' }).waitFor();
+    const guideText = await page.locator('.how-to-guide').innerText();
+    for (const heading of ['Plan where your money will go', 'Add money you get or spend', 'Make a shopping list', 'Use your saved price again']) {
+      if (!guideText.includes(heading)) fail('How-to guide is missing a required section', heading);
+    }
+    if (/add partner|create profile|partner profile/i.test(guideText)) fail('How-to guide includes partner-profile setup instructions');
+    await page.waitForTimeout(300);
+    const guideAudit = await page.evaluate(() => {
+      const modal = document.querySelector('.guide-modal');
+      const rect = modal.getBoundingClientRect();
+      const info = document.querySelector('#how-to-control').getBoundingClientRect();
+      return { left: rect.left, right: rect.right, bottom: rect.bottom, viewportWidth: innerWidth, viewportHeight: innerHeight, infoWidth: info.width, infoHeight: info.height };
+    });
+    if (guideAudit.left < -1 || guideAudit.right > guideAudit.viewportWidth + 1 || guideAudit.bottom > guideAudit.viewportHeight + 1) fail('How-to guide escapes the iPhone viewport', guideAudit);
+    if (guideAudit.infoWidth < 44 || guideAudit.infoHeight < 44) fail('How-to button is too small to tap', guideAudit);
+    await page.screenshot({ path: path.join(previewDir, 'brady-budget-how-to-guide.png'), fullPage: false });
+    await page.getByRole('button', { name: 'Got it' }).click();
+
     await page.getByRole('button', { name: 'Choose month' }).click();
     await page.locator('#mobile-month-picker').waitFor();
     await page.locator('#mobile-month-picker').fill('2026-07');

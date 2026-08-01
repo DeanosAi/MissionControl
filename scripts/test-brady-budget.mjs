@@ -125,7 +125,16 @@ test('mobile layout protects touch targets, navigation, forms, and bottom conten
   assert.doesNotMatch(app, /if \(activeView\(\) === "more"\) renderApp\(\);\s*\n\s*},\s*\n\s*}\);/);
   assert.match(styles, /\.mobile-nav \.nav-link\.active\s*\{\s*color:\s*var\(--on-mint\);\s*background:\s*var\(--mint\)/);
   assert.match(storage, /if \(remote\.status === status\) return;/);
-  assert.match(serviceWorker, /brady-budget-v7/);
+  assert.match(serviceWorker, /brady-budget-v8/);
+
+  const guideStart = app.indexOf('function howToGuideModal');
+  const guideEnd = app.indexOf('function monthPickerModal', guideStart);
+  const guide = app.slice(guideStart, guideEnd);
+  assert.match(guide, /How to use Brady Budget/);
+  assert.match(guide, /Plan where your money will go/);
+  assert.match(guide, /Make a shopping list/);
+  assert.match(guide, /Saved product/);
+  assert.doesNotMatch(guide, /Add partner|Create profile|partner profile/i);
   assert.match(serviceWorker, /\.\/js\/pricing\.js/);
 });
 
