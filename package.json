@@ -9,7 +9,8 @@
     "lint": "eslint",
     "test:intent": "node --no-warnings --experimental-strip-types scripts/test-conversational-intent.mjs",
     "test:task-intent": "node --no-warnings --experimental-strip-types scripts/test-chat-task-intent.mjs",
-    "test:bridge": "npm run test:intent && npm run test:task-intent"
+    "test:bridge": "npm run test:intent && npm run test:task-intent",
+    "test:budget": "node --no-warnings --test scripts/test-brady-budget.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

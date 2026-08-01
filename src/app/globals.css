@@ -2112,6 +2112,62 @@ h1, h2, h3, h4, p { margin: 0; }
   }
 }
 
+.brady-login-shell {
+  color: #102a2a;
+  background:
+    radial-gradient(circle at 15% 10%, rgba(215, 241, 92, 0.38), transparent 24rem),
+    #f3f0e8;
+}
+
+.brady-login-card {
+  color: #102a2a;
+  background: #fffdf8;
+  border-color: #dcd9cf;
+  box-shadow: 0 24px 70px rgba(16, 42, 42, 0.16);
+}
+
+.brady-login-card p,
+.brady-login-card .login-field span { color: #4c6462; }
+
+.brady-login-card .login-field input {
+  color: #102a2a;
+  background: white;
+  border-color: #dcd9cf;
+}
+
+.brady-login-card .login-field input:focus {
+  border-color: #79b8be;
+  box-shadow: 0 0 0 3px rgba(121, 184, 190, 0.2);
+}
+
+.brady-login-brand {
+  display: grid;
+  width: 62px;
+  height: 62px;
+  margin-bottom: 18px;
+  place-items: center;
+  color: #102a2a;
+  background: #d7f15c;
+  border-radius: 19px;
+  font-weight: 900;
+  letter-spacing: -0.08em;
+}
+
+.brady-login-button {
+  color: #102a2a;
+  background: #d7f15c;
+}
+
+.access-form { display: grid; gap: 14px; }
+.access-form label, .access-form label > span { display: grid; gap: 7px; }
+.access-form label > span { color: #4c6462; font-size: 13px; font-weight: 750; }
+.access-form input { min-height: 46px; padding: 0 13px; color: #102a2a; background: white; border: 1px solid #dcd9cf; border-radius: 11px; font: inherit; }
+.access-form button { min-height: 46px; color: #102a2a; background: #d7f15c; border: 0; border-radius: 12px; font-weight: 800; cursor: pointer; }
+.access-form button:disabled { opacity: .65; cursor: wait; }
+.access-message { margin: 0; padding: 11px 13px; border-radius: 10px; font-size: 13px; }
+.access-message.error { color: #7b2d27; background: #ffe2d9; }
+.access-message.success { color: #255c42; background: #e1f1e7; }
+
 /* Mission Control V3 Sprint 1.5 — decision intelligence */
 
 .decision-analysis {
