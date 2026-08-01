@@ -38,7 +38,7 @@ export function baseState() {
     meta: { createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
   };
   const primary = createProfileRecord(state, { id: "profile-primary", name: "My budget", colour: PROFILE_COLOURS[0] });
-  state.household = { activeProfileId: primary.id, profiles: [primary], shopping: { budget: 0, weekKey: shoppingWeekKey(), items: [] } };
+  state.household = { activeProfileId: primary.id, profiles: [primary], shopping: { budget: 0, weekKey: shoppingWeekKey(), storeId: "aldi", priceMemory: {}, items: [] } };
   return state;
 }
 

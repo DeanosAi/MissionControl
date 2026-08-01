@@ -39,6 +39,14 @@ import {
   stateSize,
   transactionsToCSV,
 } from "./storage.js";
+import {
+  estimateShoppingPrice,
+  normaliseStoreId,
+  rememberShoppingPrice,
+  SHOPPING_STORES,
+  storeLabel,
+  suggestShoppingProducts,
+} from "./pricing.js";
 
 const NAV_ITEMS = [
   { id: "overview", label: "Overview", icon: "home" },
@@ -76,6 +84,7 @@ const GROUPS = {
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const money = (value, options) => formatCurrency(value, state.profile.currency, options);
+const groceryMoney = (value) => money(value, { maximumFractionDigits: 2 });
 const icon = (name) => `<svg aria-hidden="true"><use href="#i-${name}"></use></svg>`;
 
 let state = loadState();
@@ -385,6 +394,8 @@ function renderGoalCard(goal) {
 function renderShopping() {
   const shopping = state.household.shopping || { budget: 0, items: [] };
   const items = shopping.items || [];
+  const storeId = normaliseStoreId(shopping.storeId);
+  const selectedStore = storeLabel(storeId);
   const shoppingTotals = calculateShoppingList(items, shopping.budget);
   const { estimatedTotal, remaining, percent } = shoppingTotals;
   const openItems = items.filter((item) => !item.checked);
@@ -394,10 +405,13 @@ function renderShopping() {
   return `<section class="shopping-summary card">
       <div class="shopping-summary-copy">
         <p class="hero-label"><span class="dot"></span> Shared grocery plan</p>
-        <div class="shopping-total">${money(estimatedTotal)}</div>
-        <p>${items.length} item${items.length === 1 ? "" : "s"} estimated · ${money(remaining)} ${remaining < 0 ? "over" : "left in"} the ${money(shopping.budget)} grocery budget · week of ${weekLabel}</p>
+        <div class="shopping-total">${groceryMoney(estimatedTotal)}</div>
+        <p>${items.length} item${items.length === 1 ? "" : "s"} estimated for ${selectedStore} · ${money(remaining)} ${remaining < 0 ? "over" : "left in"} the ${money(shopping.budget)} grocery budget · week of ${weekLabel}</p>
       </div>
-      <div class="shopping-summary-actions"><button class="button secondary" data-action="set-shopping-budget">Set budget</button><button class="button accent" data-action="add-shopping-item">${icon("plus")} Add item</button></div>
+      <div class="shopping-summary-actions">
+        <label class="shopping-store-control" for="shopping-store"><span>Shopping at</span><select id="shopping-store">${shoppingStoreOptions(storeId)}</select><small>Guide prices only</small></label>
+        <div class="shopping-action-buttons"><button class="button secondary" data-action="set-shopping-budget">Set budget</button><button class="button accent" data-action="add-shopping-item">${icon("plus")} Add item</button></div>
+      </div>
       <div class="shopping-budget-track"><span class="${remaining < 0 ? "over" : ""}" style="width:${percent}%"></span></div>
     </section>
     <div class="notice">${icon("info")}<span>Tick items off as you find them. This household list updates live on both phones${recurringItems.length ? ` and resets ${recurringItems.length} weekly item${recurringItems.length === 1 ? "" : "s"} every Monday` : ""}.</span></div>
@@ -411,10 +425,11 @@ function renderShopping() {
 function renderShoppingRow(item) {
   const addedBy = state.household.profiles.find((profile) => profile.id === item.addedByProfileId);
   const total = Math.max(1, Number(item.quantity) || 1) * Math.max(0, Number(item.estimatedCost) || 0);
+  const estimateLabel = ["memory", "manual"].includes(item.priceSource) ? `${storeLabel(item.storeId)} saved price` : `${storeLabel(item.storeId)} estimate`;
   return `<div class="shopping-row ${item.checked ? "checked" : ""}">
     <button class="shopping-check" type="button" data-action="toggle-shopping-item" data-id="${escapeHTML(item.id)}" aria-pressed="${item.checked}" aria-label="${item.checked ? "Put" : "Mark"} ${escapeHTML(item.name)} ${item.checked ? "back on list" : "in trolley"}">${item.checked ? icon("check") : ""}</button>
-    <span class="shopping-copy"><strong>${escapeHTML(item.name)}${item.recurring ? '<em class="recurring-badge">Weekly</em>' : ""}</strong><span>${Math.max(1, Number(item.quantity) || 1)} × ${money(item.estimatedCost)} · added by ${escapeHTML(addedBy?.name || "Household")}</span></span>
-    <strong class="shopping-price">${money(total)}</strong>
+    <span class="shopping-copy"><strong>${escapeHTML(item.name)}${item.recurring ? '<em class="recurring-badge">Weekly</em>' : ""}</strong><span>${Math.max(1, Number(item.quantity) || 1)} × ${groceryMoney(item.estimatedCost)} · ${escapeHTML(estimateLabel)} · added by ${escapeHTML(addedBy?.name || "Household")}</span></span>
+    <strong class="shopping-price">${groceryMoney(total)}</strong>
     <span class="shopping-actions"><button class="icon-button" data-action="edit-shopping-item" data-id="${escapeHTML(item.id)}" aria-label="Edit ${escapeHTML(item.name)}">${icon("edit")}</button><button class="icon-button danger" data-action="delete-shopping-item" data-id="${escapeHTML(item.id)}" aria-label="Delete ${escapeHTML(item.name)}">${icon("trash")}</button></span>
   </div>`;
 }
@@ -463,7 +478,7 @@ function renderMore() {
         <p>Brady Budget combines envelope planning with a simple safe-to-spend number. Household data is stored on your private Mission Control server and synced between signed-in phones.</p>
         <p><strong style="color:white">Important:</strong> this is a planning tool, not financial advice. Keep regular backups for an additional copy of your data.</p>
         ${deferredInstallPrompt ? `<button class="button accent block" data-action="install-app" style="margin-top:12px">Install Brady Budget</button>` : ""}
-        <div class="about-version">Version 3.0 · Live household sync</div>
+        <div class="about-version">Version 3.1 · Predictive shopping prices</div>
       </article>
     </aside>
   </section>`;
@@ -659,6 +674,76 @@ function updateBillSplitPreview() {
   if ($("#bill-partner-share")) $("#bill-partner-share").textContent = money(Math.max(0, total - own));
 }
 
+function shoppingStoreOptions(selected = "aldi") {
+  return SHOPPING_STORES.map((store) => `<option value="${store.id}" ${store.id === selected ? "selected" : ""}>${store.label}</option>`).join("");
+}
+
+function updateShoppingLineEstimate() {
+  const preview = $("#shopping-line-estimate");
+  if (!preview) return;
+  const quantity = Math.max(1, Number($("#shopping-quantity")?.value) || 1);
+  const price = Math.max(0, Number($("#shopping-cost")?.value) || 0);
+  preview.innerHTML = `<span>${quantity} × ${groceryMoney(price)}</span><strong>${groceryMoney(quantity * price)} expected</strong>`;
+}
+
+function renderShoppingSuggestions(name) {
+  const region = $("#shopping-product-suggestions");
+  if (!region) return;
+  const shopping = state.household.shopping || {};
+  const storeId = normaliseStoreId(shopping.storeId);
+  const suggestions = suggestShoppingProducts(name, storeId, shopping.priceMemory);
+  region.hidden = !suggestions.length;
+  region.innerHTML = suggestions.map((suggestion) => `<button type="button" data-action="select-shopping-suggestion" data-name="${escapeHTML(suggestion.name)}"><span>${escapeHTML(suggestion.name)}</span><strong>${groceryMoney(suggestion.price)}</strong></button>`).join("");
+}
+
+function updateShoppingEstimate({ force = false, hideSuggestions = false } = {}) {
+  const nameInput = $("#shopping-name");
+  const priceInput = $("#shopping-cost");
+  const hint = $("#shopping-estimate-hint");
+  if (!nameInput || !priceInput || !hint) return;
+  const shopping = state.household.shopping || {};
+  const storeId = normaliseStoreId(shopping.storeId);
+  if (!hideSuggestions) renderShoppingSuggestions(nameInput.value);
+  else if ($("#shopping-product-suggestions")) $("#shopping-product-suggestions").hidden = true;
+
+  if (priceInput.dataset.priceSource === "manual" && !force) {
+    hint.textContent = `Your ${storeLabel(storeId)} price — saved for next time.`;
+    updateShoppingLineEstimate();
+    return;
+  }
+  const estimate = estimateShoppingPrice(nameInput.value, storeId, shopping.priceMemory);
+  if (!estimate) {
+    hint.textContent = `Type an item and Brady Budget will predict a ${storeLabel(storeId)} price.`;
+    updateShoppingLineEstimate();
+    return;
+  }
+  priceInput.value = estimate.price.toFixed(2);
+  priceInput.dataset.priceSource = estimate.source;
+  priceInput.dataset.priceKey = estimate.key;
+  hint.textContent = `${estimate.description}. Edit it if your pack or shelf price differs.`;
+  updateShoppingLineEstimate();
+}
+
+function markShoppingPriceManual() {
+  const priceInput = $("#shopping-cost");
+  const hint = $("#shopping-estimate-hint");
+  if (!priceInput || !hint) return;
+  priceInput.dataset.priceSource = "manual";
+  hint.textContent = `Your ${storeLabel(state.household.shopping?.storeId)} price — saved for next time.`;
+  updateShoppingLineEstimate();
+}
+
+function changeShoppingStore(nextStoreId) {
+  const shopping = state.household.shopping || { budget: 0, items: [] };
+  const storeId = normaliseStoreId(nextStoreId);
+  const items = (shopping.items || []).map((item) => {
+    const estimate = estimateShoppingPrice(item.name, storeId, shopping.priceMemory);
+    return estimate ? { ...item, storeId, estimatedCost: estimate.price, priceSource: estimate.source, priceKey: estimate.key } : { ...item, storeId };
+  });
+  state.household.shopping = { ...shopping, storeId, items };
+  persist(`Shopping estimates changed to ${storeLabel(storeId)}.`);
+}
+
 function shoppingBudgetModal() {
   openModal({
     title: "Set grocery budget",
@@ -669,16 +754,26 @@ function shoppingBudgetModal() {
 
 function shoppingItemModal(item = null) {
   const entry = item || { id: "", name: "", quantity: 1, estimatedCost: "", recurring: false };
+  const selectedStore = storeLabel(state.household.shopping?.storeId);
   openModal({
     title: item ? "Edit shopping item" : "Add to shopping list",
-    subtitle: `This item will be visible from both profiles. It will show that ${escapeHTML(state.profile.name)} added it.`,
+    subtitle: `Type what you need and Brady Budget will predict a ${selectedStore} guide price.`,
     body: `<form data-form="shopping-item"><input type="hidden" name="id" value="${escapeHTML(entry.id)}" /><div class="form-grid">
-      <div class="field full"><label for="shopping-name">Item</label><input id="shopping-name" name="name" value="${escapeHTML(entry.name)}" placeholder="Milk" required /></div>
+      <div class="field full predictive-field"><label for="shopping-name">Item</label><input id="shopping-name" name="name" value="${escapeHTML(entry.name)}" placeholder="Try milk, bread or eggs" role="combobox" aria-autocomplete="list" aria-controls="shopping-product-suggestions" required /><div id="shopping-product-suggestions" class="product-suggestions" role="listbox" hidden></div></div>
       <div class="field"><label for="shopping-quantity">Quantity</label><input id="shopping-quantity" name="quantity" type="number" min="1" step="1" value="${escapeHTML(entry.quantity)}" required /></div>
-      <div class="field"><label for="shopping-cost">Estimated price each</label><div class="money-input"><span>$</span><input id="shopping-cost" name="estimatedCost" type="number" min="0" step="0.01" value="${escapeHTML(entry.estimatedCost)}" placeholder="4.50" required /></div></div>
+      <div class="field"><label for="shopping-cost">Estimated price each</label><div class="money-input"><span>$</span><input id="shopping-cost" name="estimatedCost" type="number" min="0" step="0.01" value="${escapeHTML(entry.estimatedCost)}" placeholder="Filled automatically" aria-describedby="shopping-estimate-hint" required /></div><div class="estimate-hint-row"><small id="shopping-estimate-hint">Type an item to get a ${selectedStore} estimate.</small><button class="text-button" type="button" data-action="use-shopping-estimate">Use estimate</button></div></div>
+      <div class="estimate-preview full" id="shopping-line-estimate"><span>1 × ${groceryMoney(entry.estimatedCost || 0)}</span><strong>${groceryMoney(entry.estimatedCost || 0)} expected</strong></div>
       <div class="field full"><label class="checkbox-field"><input name="recurring" type="checkbox" ${entry.recurring ? "checked" : ""} /><span><strong>Add every week</strong><small>This item returns unticked when a new shopping week starts on Monday.</small></span></label></div>
     </div><div class="modal-actions">${item ? `<button class="button ghost" type="button" data-action="delete-shopping-item" data-id="${escapeHTML(item.id)}">Delete</button>` : ""}<button class="button secondary" type="button" data-action="close-modal">Cancel</button><button class="button" type="submit">${item ? "Save item" : "Add item"}</button></div></form>`,
   });
+  const priceInput = $("#shopping-cost");
+  priceInput.dataset.priceSource = entry.priceSource || (item ? "manual" : "");
+  priceInput.dataset.priceKey = entry.priceKey || "";
+  if (entry.name && !entry.estimatedCost) updateShoppingEstimate({ force: true });
+  else {
+    updateShoppingLineEstimate();
+    if (entry.name) renderShoppingSuggestions(entry.name);
+  }
 }
 
 function profileModal() {
@@ -917,21 +1012,34 @@ async function handleSubmit(event) {
   }
   if (type === "shopping-item") {
     const id = String(data.get("id"));
-    const existing = state.household.shopping.items.find((item) => item.id === id);
+    const shopping = state.household.shopping;
+    const existing = shopping.items.find((item) => item.id === id);
+    const storeId = normaliseStoreId(shopping.storeId);
+    const priceInput = $("#shopping-cost", form);
+    const priceSource = priceInput?.dataset.priceSource || "manual";
+    const name = String(data.get("name")).trim();
+    const estimatedCost = formNumber(data, "estimatedCost");
     const item = {
       id: id || uid("shop"),
-      name: String(data.get("name")).trim(),
+      name,
       quantity: Math.max(1, Math.round(formNumber(data, "quantity"))),
-      estimatedCost: formNumber(data, "estimatedCost"),
+      estimatedCost,
+      storeId,
+      priceSource,
+      priceKey: priceInput?.dataset.priceKey || "",
       checked: existing?.checked || false,
       recurring: data.get("recurring") === "on",
       addedByProfileId: existing?.addedByProfileId || state.household.activeProfileId,
       createdAt: existing?.createdAt || new Date().toISOString(),
-      weekAdded: existing?.weekAdded || state.household.shopping.weekKey,
+      weekAdded: existing?.weekAdded || shopping.weekKey,
     };
-    state.household.shopping.items = id
-      ? state.household.shopping.items.map((entry) => entry.id === id ? item : entry)
-      : [...state.household.shopping.items, item];
+    const items = id
+      ? shopping.items.map((entry) => entry.id === id ? item : entry)
+      : [...shopping.items, item];
+    const priceMemory = priceSource === "manual"
+      ? rememberShoppingPrice(shopping.priceMemory, storeId, name, estimatedCost)
+      : shopping.priceMemory;
+    state.household.shopping = { ...shopping, items, priceMemory };
     closeModal();
     persist(id ? "Shopping item updated." : "Added to the shared list.");
     return;
@@ -1093,6 +1201,16 @@ function handleClick(event) {
   else if (action === "pay-bill") markBillPaid(id);
   else if (action === "set-shopping-budget") shoppingBudgetModal();
   else if (action === "add-shopping-item") shoppingItemModal();
+  else if (action === "use-shopping-estimate") updateShoppingEstimate({ force: true });
+  else if (action === "select-shopping-suggestion") {
+    const nameInput = $("#shopping-name");
+    const priceInput = $("#shopping-cost");
+    if (nameInput && priceInput) {
+      nameInput.value = button.dataset.name || nameInput.value;
+      priceInput.dataset.priceSource = "";
+      updateShoppingEstimate({ force: true, hideSuggestions: true });
+    }
+  }
   else if (action === "edit-shopping-item") shoppingItemModal(state.household.shopping.items.find((item) => item.id === id));
   else if (action === "toggle-shopping-item") {
     state.household.shopping.items = state.household.shopping.items.map((item) => item.id === id ? { ...item, checked: !item.checked } : item);
@@ -1185,10 +1303,14 @@ function init() {
     handleFileChange(event);
     if (event.target.id === "transaction-filter") filterTransactions();
     if (event.target.id === "bill-sharing") updateBillSplitPreview();
+    if (event.target.id === "shopping-store") changeShoppingStore(event.target.value);
   });
   document.addEventListener("input", (event) => {
     if (event.target.id === "transaction-search") filterTransactions();
     if (["bill-amount", "bill-your-share"].includes(event.target.id)) updateBillSplitPreview();
+    if (event.target.id === "shopping-name") updateShoppingEstimate();
+    if (event.target.id === "shopping-quantity") updateShoppingLineEstimate();
+    if (event.target.id === "shopping-cost") markShoppingPriceManual();
   });
   $("#month-control").addEventListener("click", monthPickerModal);
   $("#profile-button").addEventListener("click", profileSwitcherModal);

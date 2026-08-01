@@ -15,6 +15,23 @@ globalThis.localStorage = new MemoryStorage();
 const { mergeBudgetStates } = await import('../public/brady-budget/js/storage.js');
 const { ensureHousehold, shoppingWeekKey } = await import('../public/brady-budget/js/profiles.js');
 const { baseState } = await import('../public/brady-budget/js/seed.js');
+const { estimateShoppingPrice, rememberShoppingPrice, suggestShoppingProducts } = await import('../public/brady-budget/js/pricing.js');
+
+test('predicts store-specific grocery prices and learns household corrections', () => {
+  const milk = estimateShoppingPrice('milk', 'aldi');
+  const misspelledMilk = estimateShoppingPrice('millk', 'aldi');
+  const colesMilk = estimateShoppingPrice('milk', 'coles');
+  assert.deepEqual({ price: milk.price, product: milk.product, source: milk.source }, { price: 3.55, product: 'Milk 2L', source: 'guide' });
+  assert.equal(misspelledMilk.product, 'Milk 2L');
+  assert.equal(colesMilk.price, 3.55);
+  assert.equal(estimateShoppingPrice('unlisted grocery item', 'aldi').price, 5);
+  assert.equal(suggestShoppingProducts('mil', 'aldi')[0].name, 'Milk 2L');
+
+  const memory = rememberShoppingPrice({}, 'aldi', 'Milk 2L', 3.45, '2026-08-01T00:00:00.000Z');
+  const remembered = estimateShoppingPrice('milk 2l', 'aldi', memory);
+  assert.equal(remembered.price, 3.45);
+  assert.equal(remembered.source, 'memory');
+});
 
 test('merges simultaneous household shopping additions without losing either phone', () => {
   const base = { household: { shopping: { items: [] } } };
@@ -50,6 +67,7 @@ test('weekly shopping rollover restores recurring items and clears completed one
   assert.deepEqual(rolled.household.shopping.items.map((item) => item.id).sort(), ['milk', 'rice']);
   assert.equal(rolled.household.shopping.items.find((item) => item.id === 'milk').checked, false);
   assert.equal(rolled.household.shopping.weekKey, shoppingWeekKey());
+  assert.equal(rolled.household.shopping.storeId, 'aldi');
 });
 
 test('shopping weeks start on Monday in local time', () => {
@@ -71,11 +89,12 @@ test('Brady Budget branding and yellow controls contain no white foreground artw
 });
 
 test('mobile layout protects touch targets, navigation, forms, and bottom content', async () => {
-  const [styles, app, index, storage] = await Promise.all([
+  const [styles, app, index, storage, serviceWorker] = await Promise.all([
     readFile(new URL('../public/brady-budget/styles.css', import.meta.url), 'utf8'),
     readFile(new URL('../public/brady-budget/js/app.js', import.meta.url), 'utf8'),
     readFile(new URL('../public/brady-budget/index.html', import.meta.url), 'utf8'),
     readFile(new URL('../public/brady-budget/js/storage.js', import.meta.url), 'utf8'),
+    readFile(new URL('../public/brady-budget/sw.js', import.meta.url), 'utf8'),
   ]);
   assert.match(index, /viewport-fit=cover/);
   assert.match(styles, /--topbar:\s*calc\(72px \+ env\(safe-area-inset-top\)\)/);
@@ -92,5 +111,7 @@ test('mobile layout protects touch targets, navigation, forms, and bottom conten
   assert.doesNotMatch(app, /if \(activeView\(\) === "more"\) renderApp\(\);\s*\n\s*},\s*\n\s*}\);/);
   assert.match(styles, /\.mobile-nav \.nav-link\.active\s*\{\s*color:\s*var\(--on-mint\);\s*background:\s*var\(--mint\)/);
   assert.match(storage, /if \(remote\.status === status\) return;/);
+  assert.match(serviceWorker, /brady-budget-v4/);
+  assert.match(serviceWorker, /\.\/js\/pricing\.js/);
 });
 
