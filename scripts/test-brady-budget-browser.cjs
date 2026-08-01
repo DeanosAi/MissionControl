@@ -77,6 +77,7 @@ async function addShoppingItem(page, name, recurring = false, storeId = 'aldi', 
 
   try {
     await login(pageA, emailA, passwordA, '/brady-budget/');
+    errors.length = 0;
     await pageA.getByRole('button', { name: 'Explore sample' }).click();
     await pageA.getByText('Safe to spend', { exact: true }).waitFor();
 
@@ -87,6 +88,23 @@ async function addShoppingItem(page, name, recurring = false, storeId = 'aldi', 
     await pageA.locator('body:not(.auth-pending)').waitFor({ timeout: 15_000 });
     const reopenedWelcome = pageA.getByRole('button', { name: 'Explore sample' });
     if (await reopenedWelcome.isVisible()) await reopenedWelcome.click();
+    await pageA.getByText('Safe to spend', { exact: true }).waitFor();
+
+    await pageA.evaluate(async () => {
+      if (!('serviceWorker' in navigator)) throw new Error('Service workers are not available.');
+      await navigator.serviceWorker.ready;
+      if (navigator.serviceWorker.controller) return;
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error('The Brady Budget service worker did not take control.')), 10_000);
+        navigator.serviceWorker.addEventListener('controllerchange', () => { clearTimeout(timeout); resolve(); }, { once: true });
+      });
+    });
+    const coldLaunchResponse = await pageA.goto(`${baseUrl}/brady-budget/`, { waitUntil: 'domcontentloaded' });
+    if (!coldLaunchResponse || coldLaunchResponse.status() !== 200) throw new Error(`The service-worker Home Screen launch returned ${coldLaunchResponse?.status() || 'no response'}.`);
+    if (coldLaunchResponse.request().redirectedFrom()) throw new Error('The service-worker Home Screen launch still followed a redirect.');
+    await pageA.locator('body:not(.auth-pending)').waitFor({ timeout: 15_000 });
+    const coldLaunchWelcome = pageA.getByRole('button', { name: 'Explore sample' });
+    if (await coldLaunchWelcome.isVisible()) await coldLaunchWelcome.click();
     await pageA.getByText('Safe to spend', { exact: true }).waitFor();
 
     await pageA.getByRole('button', { name: 'How to use Brady Budget' }).click();
@@ -245,6 +263,7 @@ async function addShoppingItem(page, name, recurring = false, storeId = 'aldi', 
       learnedProductSynced: true,
       simpleHowToGuide: true,
       homeScreenLaunchFixed: true,
+      serviceWorkerColdLaunchFixed: true,
       predictedMilkPrice,
       correctedPriceLearnedAcrossPhones: true,
       concurrentItemsMerged: true,

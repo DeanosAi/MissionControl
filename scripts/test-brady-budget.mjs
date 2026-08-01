@@ -127,14 +127,18 @@ test('mobile layout protects touch targets, navigation, forms, and bottom conten
   assert.doesNotMatch(app, /if \(activeView\(\) === "more"\) renderApp\(\);\s*\n\s*},\s*\n\s*}\);/);
   assert.match(styles, /\.mobile-nav \.nav-link\.active\s*\{\s*color:\s*var\(--on-mint\);\s*background:\s*var\(--mint\)/);
   assert.match(storage, /if \(remote\.status === status\) return;/);
-  assert.match(serviceWorker, /brady-budget-v9/);
+  assert.match(serviceWorker, /brady-budget-v10/);
 
   const manifest = JSON.parse(manifestSource);
   assert.equal(manifest.id, '/budget');
   assert.equal(manifest.start_url, '/budget');
   assert.equal(manifest.scope, '/');
-  assert.match(nextConfig, /source:\s*["']\/brady-budget["']/);
-  assert.match(nextConfig, /destination:\s*["']\/budget["']/);
+  assert.match(nextConfig, /skipTrailingSlashRedirect:\s*true/);
+  assert.match(nextConfig, /source:\s*["']\/brady-budget\/["']/);
+  assert.match(nextConfig, /destination:\s*["']\/brady-budget\/index\.html["']/);
+  assert.match(serviceWorker, /isLegacyAppLaunch/);
+  assert.match(serviceWorker, /caches\.match\(["']\.\/index\.html["']\)/);
+  assert.match(serviceWorker, /!response\.redirected/);
 
   const guideStart = app.indexOf('function howToGuideModal');
   const guideEnd = app.indexOf('function monthPickerModal', guideStart);

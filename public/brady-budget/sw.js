@@ -1,4 +1,4 @@
-const CACHE_NAME = "brady-budget-v9";
+const CACHE_NAME = "brady-budget-v10";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -33,11 +33,21 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   const requestUrl = new URL(event.request.url);
   if (requestUrl.pathname.startsWith("/api/") || requestUrl.pathname.startsWith("/budget/")) return;
+
+  const isLegacyAppLaunch = event.request.mode === "navigate"
+    && ["/brady-budget", "/brady-budget/"].includes(requestUrl.pathname);
+  if (isLegacyAppLaunch) {
+    event.respondWith(
+      caches.match("./index.html").then((cached) => cached || fetch("./index.html", { cache: "no-store" })),
+    );
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request).then((cached) => {
       const network = fetch(event.request)
         .then((response) => {
-          if (response.ok && new URL(event.request.url).origin === self.location.origin) {
+          if (response.ok && !response.redirected && new URL(event.request.url).origin === self.location.origin) {
             const copy = response.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
           }
