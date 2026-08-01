@@ -13,7 +13,7 @@ globalThis.sessionStorage = new MemoryStorage();
 globalThis.localStorage = new MemoryStorage();
 
 const { mergeBudgetStates } = await import('../public/brady-budget/js/storage.js');
-const { calculateBudget, categoryAmountForPeriod, normalizeIncome, periodBounds, periodLabel, recurringAmountForPeriod } = await import('../public/brady-budget/js/calculations.js');
+const { calculateBudget, categoryAmountForPeriod, incomeForCadence, normalizeIncome, periodBounds, periodLabel, recurringAmountForPeriod } = await import('../public/brady-budget/js/calculations.js');
 const { activateProfile, ensureHousehold, shoppingWeekKey, syncActiveProfile } = await import('../public/brady-budget/js/profiles.js');
 const { baseState } = await import('../public/brady-budget/js/seed.js');
 const { estimateShoppingPrice, rememberShoppingPrice, suggestShoppingProducts } = await import('../public/brady-budget/js/pricing.js');
@@ -132,6 +132,9 @@ test('weekly, fortnightly, and monthly views use the correct dates and planning 
   assert.equal(recurringAmountForPeriod(220, 'fortnightly', 'monthly'), 440);
   assert.equal(normalizeIncome(220, 'weekly'), 880);
   assert.equal(normalizeIncome(220, 'fortnightly'), 440);
+  assert.equal(incomeForCadence(880, 'weekly'), 220);
+  assert.equal(incomeForCadence(880, 'fortnightly'), 440);
+  assert.equal(incomeForCadence(880, 'monthly'), 880);
 });
 
 test('expenditure amounts can repeat weekly, fortnightly, or monthly', () => {
@@ -219,7 +222,7 @@ test('mobile layout protects touch targets, navigation, forms, and bottom conten
   assert.match(app, /data-action="dismiss-household-notice"/);
   assert.match(app, /aria-label="Close individual budget message"/);
   assert.match(storage, /if \(remote\.status === status\) return;/);
-  assert.match(serviceWorker, /brady-budget-v15/);
+  assert.match(serviceWorker, /brady-budget-v16/);
   assert.match(app, /data-action="add-group"/);
   assert.match(app, />\$\{icon\("plus"\)\} Expenditure<\/button>/);
   assert.match(app, /id="category-frequency"/);
@@ -236,6 +239,11 @@ test('mobile layout protects touch targets, navigation, forms, and bottom conten
   assert.match(app, /Not every month is exactly 4 weeks/);
   assert.match(app, /1 fortnight is 2 weeks and 1 month is 4 weeks/);
   assert.match(app, /\$220 per week is \$880 per month/);
+  assert.match(app, /id="profile-income-cadence"/);
+  assert.match(app, /name="incomeCadence"/);
+  assert.match(app, /Expected income/);
+  assert.match(app, /This equals .* per budgeting month/);
+  assert.match(app, /updateProfileIncomeCadence/);
 
   const manifest = JSON.parse(manifestSource);
   assert.equal(manifest.id, '/budget');

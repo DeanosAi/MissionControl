@@ -159,10 +159,32 @@ async function addShoppingItem(page, name, recurring = false, storeId = 'aldi', 
     if (await pageA.locator('.individual-budget-notice').count()) throw new Error('The individual-budget notice did not stay dismissed on the device.');
 
     await switchProfile(pageB, 'Dean');
+
+    await pageA.locator('.mobile-nav').getByText('More', { exact: true }).click();
+    await pageA.locator('.settings-row').filter({ hasText: 'Profile & preferences' }).getByRole('button', { name: 'Edit' }).click();
+    if (await pageA.locator('#profile-income-cadence').inputValue() !== 'fortnightly') throw new Error('The saved fortnightly income frequency was not restored.');
+    if (await pageA.locator('#profile-income').inputValue() !== '3400') throw new Error('The saved fortnightly pay amount was not restored.');
+    await pageA.locator('#profile-income-cadence').selectOption('weekly');
+    if (await pageA.locator('#profile-income').inputValue() !== '1700') throw new Error('Changing the income frequency did not preserve its existing total.');
+    await pageA.locator('#profile-income').fill('220');
+    await pageA.getByText(/This equals \$880\.00 per budgeting month/).waitFor();
+    await pageA.getByRole('button', { name: 'Save preferences' }).click();
+    await pageB.getByText('Household changes updated.').waitFor({ timeout: 5_000 });
+    await pageB.locator('.mobile-nav').getByText('More', { exact: true }).click();
+    await pageB.locator('.settings-row').filter({ hasText: 'Profile & preferences' }).getByRole('button', { name: 'Edit' }).click();
+    if (await pageB.locator('#profile-income-cadence').inputValue() !== 'weekly' || await pageB.locator('#profile-income').inputValue() !== '220') {
+      throw new Error('The weekly expected income did not sync to the second phone.');
+    }
+    await pageB.getByRole('button', { name: 'Cancel' }).click();
+
     for (const page of [pageA, pageB]) {
       await page.locator('.mobile-nav').getByText('Plan', { exact: true }).click();
       await page.getByRole('heading', { name: 'Give your money a job' }).waitFor();
     }
+    const expectedIncomeA = pageA.locator('.metric-card').filter({ hasText: 'Expected income' });
+    const expectedIncomeB = pageB.locator('.metric-card').filter({ hasText: 'Expected income' });
+    if (!(await expectedIncomeA.innerText()).includes('$440')) throw new Error('A $220 weekly income was not shown as $440 in the fortnightly view.');
+    if (!(await expectedIncomeB.innerText()).includes('$880')) throw new Error('A $220 weekly income was not shown as $880 in the monthly view.');
     await pageA.getByRole('button', { name: 'Group', exact: true }).click();
     await pageA.locator('#group-name').fill('Pets & care');
     await pageA.locator('#group-note').fill('Food, vet and care');
@@ -353,6 +375,7 @@ async function addShoppingItem(page, name, recurring = false, storeId = 'aldi', 
       dismissibleBudgetNotice: true,
       appWidePeriodSelection: true,
       fourWeekBudgetingConvention: '$220 weekly = $440 fortnightly = $880 monthly',
+      expectedIncomeFrequencySynced: '$220 weekly = $440 fortnightly = $880 monthly',
       customGroupsSynced: true,
       groupRenameSynced: true,
       expenditureFrequencySynced: true,
