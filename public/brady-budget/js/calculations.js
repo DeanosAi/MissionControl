@@ -145,6 +145,12 @@ export function normalizeIncome(amount, cadence = "monthly") {
   return value * (factors[cadence] ?? 1);
 }
 
+export function incomeForCadence(monthlyAmount, cadence = "monthly") {
+  const value = Math.max(0, Number(monthlyAmount) || 0);
+  const factors = { weekly: 4, fortnightly: 2, monthly: 1, annual: 1 / 12 };
+  return value / (factors[cadence] ?? 1);
+}
+
 export function splitBillAmount(totalAmount, firstShare) {
   const total = Math.max(0, Number(totalAmount) || 0);
   const first = clamp(Math.max(0, Number(firstShare) || 0), 0, total);

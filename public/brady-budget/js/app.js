@@ -6,6 +6,7 @@ import {
   formatCurrency,
   formatDate,
   goalProjection,
+  incomeForCadence,
   monthKey,
   normalizeIncome,
   normalisePeriodSelection,
@@ -91,6 +92,7 @@ const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const money = (value, options) => formatCurrency(value, state.profile.currency, options);
 const groceryMoney = (value) => money(value, { maximumFractionDigits: 2 });
 const icon = (name) => `<svg aria-hidden="true"><use href="#i-${name}"></use></svg>`;
+const INCOME_CADENCES = ["weekly", "fortnightly", "monthly"];
 
 let state = loadState();
 let viewPeriod = loadViewPeriod(state.currentMonth);
@@ -105,6 +107,18 @@ function escapeHTML(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function normaliseIncomeCadence(cadence) {
+  return INCOME_CADENCES.includes(cadence) ? cadence : "monthly";
+}
+
+function incomeCadenceNoun(cadence) {
+  return cadence === "weekly" ? "week" : cadence === "fortnightly" ? "fortnight" : "month";
+}
+
+function editableMoney(value) {
+  return String(Math.round((Math.max(0, Number(value) || 0) + Number.EPSILON) * 100) / 100);
 }
 
 function activeView() {
@@ -640,7 +654,7 @@ function howToGuideModal() {
     subtitle: "Follow these easy steps. You can open this guide whenever you need help.",
     size: "guide-modal",
     body: `<div class="how-to-guide">
-      <section class="guide-step"><span class="guide-number">1</span><div><h3>Add the money you get paid</h3><p>When you first start, type how much money you get and how often you get it. To change it later, tap <strong>More</strong>, find <strong>Profile &amp; preferences</strong>, then tap <strong>Edit</strong>.</p></div></section>
+      <section class="guide-step"><span class="guide-number">1</span><div><h3>Add the money you get paid</h3><p>When you first start, type how much money you get and how often you get it. To change it later, tap <strong>More</strong>, find <strong>Profile &amp; preferences</strong>, then tap <strong>Edit</strong>. Choose <strong>Per week</strong>, <strong>Per fortnight</strong> or <strong>Per month</strong>, then save it.</p></div></section>
       <section class="guide-step"><span class="guide-number">2</span><div><h3>Plan where your money will go</h3><p>Tap <strong>Plan</strong>. Tap an expenditure such as Food or Transport. Add the amount, choose <strong>Per week</strong>, <strong>Per fortnight</strong> or <strong>Per month</strong>, then save it.</p><ul><li><strong>Assigned</strong> is the total of every planned expense for the dates you chose. Savings goals are shown separately.</li><li>Tap <strong>+ Expenditure</strong> to add a new kind of cost.</li><li>Tap <strong>+ Group</strong> to make your own section. Tap the pencil beside a group to rename it.</li><li>Open an expenditure and tap <strong>Delete</strong> if you no longer need it.</li><li><strong>Ready to assign</strong> is money that does not have a job yet. Keep it at $0 or higher.</li></ul></div></section>
       <section class="guide-step"><span class="guide-number">3</span><div><h3>Add money you get or spend</h3><p>Tap <strong>Activity</strong>, then tap <strong>Add</strong>. Choose <strong>Income</strong> when you get money. Choose <strong>Expense</strong> when you spend money. Add the name, amount, date and category, then save it.</p></div></section>
       <section class="guide-step"><span class="guide-number">4</span><div><h3>Choose the dates you want to see</h3><p>Tap the <strong>calendar</strong> at the top. Choose <strong>Weekly</strong>, <strong>Fortnightly</strong> or <strong>Monthly</strong>. Choose a date, then tap <strong>View budget</strong>. This choice is used on every budget page.</p><ul><li>A fortnight is counted as 2 weeks.</li><li>A budgeting month is counted as 4 weeks. For example, $220 per week is $880 per month.</li><li>Not every month is exactly 4 weeks. Add an extra weekly or fortnightly payment to your Plan in longer months when needed.</li></ul><p>Tap <strong>Overview</strong>. <strong>Safe to spend</strong> shows money that is still free for the dates you chose. The shared shopping checklist stays on the current shopping week so both phones see the same list.</p></div></section>
@@ -897,16 +911,44 @@ function shoppingItemModal(item = null) {
 }
 
 function profileModal() {
+  const cadence = normaliseIncomeCadence(state.profile.payCadence);
+  const income = editableMoney(incomeForCadence(state.profile.monthlyIncome, cadence));
   openModal({
     title: "Profile & preferences",
-    subtitle: "Monthly income is used for planning; transactions show what has actually arrived.",
+    subtitle: "Set how much income you expect and how often it arrives. Transactions show what has actually arrived.",
     body: `<form data-form="profile"><div class="form-grid">
       <div class="field full"><label for="profile-name">First name</label><input id="profile-name" name="name" value="${escapeHTML(state.profile.name)}" required /></div>
-      <div class="field"><label for="profile-income">Expected monthly income</label><div class="money-input"><span>$</span><input id="profile-income" name="monthlyIncome" type="number" min="0" step="1" value="${escapeHTML(state.profile.monthlyIncome)}" required /></div></div>
+      <div class="field"><label for="profile-income">Expected income</label><div class="money-input"><span>$</span><input id="profile-income" name="income" type="number" min="0" step="0.01" value="${escapeHTML(income)}" data-cadence="${escapeHTML(cadence)}" required /></div></div>
+      <div class="field"><label for="profile-income-cadence">How often?</label><select id="profile-income-cadence" name="incomeCadence"><option value="weekly" ${cadence === "weekly" ? "selected" : ""}>Per week</option><option value="fortnightly" ${cadence === "fortnightly" ? "selected" : ""}>Per fortnight</option><option value="monthly" ${cadence === "monthly" ? "selected" : ""}>Per month</option></select></div>
+      <div class="field full"><span class="hint" id="profile-income-hint"></span></div>
       <div class="field"><label for="profile-currency">Currency</label><select id="profile-currency" name="currency">${["AUD", "NZD", "USD", "GBP", "EUR", "CAD"].map((currency) => `<option value="${currency}" ${state.profile.currency === currency ? "selected" : ""}>${currency}</option>`).join("")}</select></div>
       <div class="field full"><label for="profile-theme">Appearance</label><select id="profile-theme" name="theme"><option value="system" ${state.profile.theme === "system" ? "selected" : ""}>Follow device</option><option value="light" ${state.profile.theme === "light" ? "selected" : ""}>Light</option><option value="dark" ${state.profile.theme === "dark" ? "selected" : ""}>Dark</option></select></div>
     </div><div class="modal-actions">${state.household.profiles.length > 1 ? `<button class="button ghost" type="button" data-action="remove-profile" data-id="${escapeHTML(state.household.activeProfileId)}">Remove profile</button>` : ""}<button class="button secondary" type="button" data-action="close-modal">Cancel</button><button class="button" type="submit">Save preferences</button></div></form>`,
   });
+  updateProfileIncomeHint();
+}
+
+function updateProfileIncomeHint() {
+  const input = $("#profile-income");
+  const cadenceSelect = $("#profile-income-cadence");
+  const hint = $("#profile-income-hint");
+  if (!input || !cadenceSelect || !hint) return;
+  const cadence = normaliseIncomeCadence(cadenceSelect.value);
+  const currency = $("#profile-currency")?.value || state.profile.currency;
+  const monthlyIncome = normalizeIncome(input.value, cadence);
+  hint.textContent = `This equals ${formatCurrency(monthlyIncome, currency, { maximumFractionDigits: 2 })} per budgeting month. A month is counted as 4 weeks.`;
+}
+
+function updateProfileIncomeCadence() {
+  const input = $("#profile-income");
+  const cadenceSelect = $("#profile-income-cadence");
+  if (!input || !cadenceSelect) return;
+  const oldCadence = normaliseIncomeCadence(input.dataset.cadence);
+  const newCadence = normaliseIncomeCadence(cadenceSelect.value);
+  const monthlyIncome = normalizeIncome(input.value, oldCadence);
+  input.value = editableMoney(incomeForCadence(monthlyIncome, newCadence));
+  input.dataset.cadence = newCadence;
+  updateProfileIncomeHint();
 }
 
 function profileSwitcherModal() {
@@ -918,7 +960,11 @@ function profileSwitcherModal() {
       const active = profile.id === state.household.activeProfileId;
       return `<div class="profile-choice ${active ? "active" : ""}">
         <span class="profile-choice-avatar" style="background:${escapeHTML(profile.colour)}">${escapeHTML(profile.name.slice(0, 1).toUpperCase())}</span>
-        <span class="profile-choice-copy"><strong>${escapeHTML(profile.name)}</strong><span>${moneyForProfile(profile.profile.monthlyIncome, profile.profile.currency)} expected monthly income</span></span>
+        ${(() => {
+          const cadence = normaliseIncomeCadence(profile.profile.payCadence);
+          const income = incomeForCadence(profile.profile.monthlyIncome, cadence);
+          return `<span class="profile-choice-copy"><strong>${escapeHTML(profile.name)}</strong><span>${moneyForProfile(income, profile.profile.currency)} expected per ${incomeCadenceNoun(cadence)}</span></span>`;
+        })()}
         <button class="button small ${active ? "accent" : "secondary"}" type="button" data-action="select-profile" data-id="${escapeHTML(profile.id)}">${active ? "Viewing" : "Switch"}</button>
       </div>`;
     }).join("")}</div>
@@ -1194,7 +1240,9 @@ async function handleSubmit(event) {
   }
   if (type === "profile") {
     state.profile.name = String(data.get("name")).trim();
-    state.profile.monthlyIncome = formNumber(data, "monthlyIncome");
+    const incomeCadence = normaliseIncomeCadence(String(data.get("incomeCadence")));
+    state.profile.payCadence = incomeCadence;
+    state.profile.monthlyIncome = Math.round((normalizeIncome(formNumber(data, "income"), incomeCadence) + Number.EPSILON) * 100) / 100;
     state.profile.currency = String(data.get("currency"));
     state.profile.theme = String(data.get("theme"));
     state.profile.demoMode = false;
@@ -1477,6 +1525,8 @@ function init() {
     if (event.target.id === "transaction-filter") filterTransactions();
     if (event.target.id === "bill-sharing") updateBillSplitPreview();
     if (event.target.name === "periodKind") updatePeriodPreview();
+    if (event.target.id === "profile-income-cadence") updateProfileIncomeCadence();
+    if (event.target.id === "profile-currency") updateProfileIncomeHint();
     if (event.target.id === "shopping-item-store") {
       const priceInput = $("#shopping-cost");
       if (priceInput) priceInput.dataset.priceSource = "";
@@ -1490,6 +1540,7 @@ function init() {
     if (event.target.id === "shopping-quantity") updateShoppingLineEstimate();
     if (event.target.id === "shopping-cost") markShoppingPriceManual();
     if (event.target.id === "period-anchor") updatePeriodPreview();
+    if (event.target.id === "profile-income") updateProfileIncomeHint();
   });
   document.addEventListener("focusin", (event) => {
     if (event.target.id === "shopping-name") renderShoppingSuggestions(event.target.value);

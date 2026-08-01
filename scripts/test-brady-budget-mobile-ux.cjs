@@ -243,6 +243,19 @@ async function assertMobileLayout(page, label) {
     await page.locator('.mobile-nav').getByText('Plan', { exact: true }).click();
     await page.getByText('Not every month is exactly 4 weeks.', { exact: true }).waitFor();
 
+    await page.locator('.mobile-nav').getByText('More', { exact: true }).click();
+    await page.locator('.settings-row').filter({ hasText: 'Profile & preferences' }).getByRole('button', { name: 'Edit' }).click();
+    if (await page.locator('#profile-income-cadence').inputValue() !== 'fortnightly') fail('Saved income frequency was not shown in Profile & preferences');
+    if (await page.locator('#profile-income').inputValue() !== '3400') fail('Expected fortnightly income was not restored from the monthly planning total');
+    await page.locator('#profile-income-cadence').selectOption('weekly');
+    if (await page.locator('#profile-income').inputValue() !== '1700') fail('Changing income frequency did not preserve the existing total');
+    await page.locator('#profile-income').fill('220');
+    await page.getByText(/This equals \$880\.00 per budgeting month/).waitFor();
+    await page.screenshot({ path: path.join(previewDir, 'brady-budget-income-frequency.png'), fullPage: false });
+    await page.getByRole('button', { name: 'Save preferences' }).click();
+    await page.locator('.mobile-nav').getByText('Overview', { exact: true }).click();
+    await page.locator('.hero-stat').filter({ hasText: 'Expected income' }).getByText('$880', { exact: true }).waitFor();
+
     await page.setViewportSize({ width: 320, height: 568 });
     await page.getByRole('button', { name: /Choose budget period/ }).click();
     await page.waitForTimeout(350);
