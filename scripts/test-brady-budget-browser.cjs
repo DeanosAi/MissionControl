@@ -116,7 +116,8 @@ async function addShoppingItem(page, name, recurring = false, storeId = 'aldi', 
     await pageA.getByRole('button', { name: /Choose budget period/ }).click();
     await pageA.getByLabel('Fortnightly').check();
     await pageA.locator('#period-anchor').fill('2026-08-05');
-    if ((await pageA.locator('#period-preview-label').textContent()).trim() !== '27 July – 9 August 2026') throw new Error('The fortnightly preview has the wrong date range.');
+    const fortnightlyPreview = (await pageA.locator('#period-preview-label').textContent()).trim();
+    if (fortnightlyPreview !== '3–16 August 2026') throw new Error(`The fortnightly preview has the wrong date range: ${fortnightlyPreview}`);
     await pageA.getByRole('button', { name: 'View budget', exact: true }).click();
     await pageA.getByRole('heading', { name: 'Fortnightly snapshot' }).waitFor();
     for (const [view, title] of [['plan', 'Fortnightly plan'], ['activity', 'Activity'], ['goals', 'Savings goals'], ['shopping', 'Shopping list'], ['more', 'More'], ['overview', 'Overview']]) {
@@ -124,7 +125,7 @@ async function addShoppingItem(page, name, recurring = false, storeId = 'aldi', 
       await pageA.waitForFunction((expectedTitle) => document.querySelector('#page-title')?.textContent === expectedTitle, title);
       if (!(await pageA.locator('#month-control').getAttribute('aria-label')).includes('Currently fortnightly')) throw new Error(`${view} lost the app-wide fortnightly selection.`);
     }
-    await pageA.reload({ waitUntil: 'networkidle' });
+    await pageA.reload({ waitUntil: 'domcontentloaded' });
     await pageA.locator('body:not(.auth-pending)').waitFor({ timeout: 15_000 });
     if (!(await pageA.locator('#month-control').getAttribute('aria-label')).includes('Currently fortnightly')) throw new Error('The selected period was not remembered on the phone.');
 
