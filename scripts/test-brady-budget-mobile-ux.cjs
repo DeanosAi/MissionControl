@@ -149,6 +149,7 @@ async function assertMobileLayout(page, label) {
     await page.getByRole('button', { name: 'Got it' }).click();
 
     await page.getByRole('button', { name: /Choose budget period/ }).click();
+    await page.getByText(/Not every month is exactly 4 weeks/).waitFor();
     await page.getByLabel('Weekly').check();
     await page.locator('#period-anchor').fill('2026-07-15');
     if ((await page.locator('#period-preview-label').textContent()).trim() !== '13–19 July 2026') fail('Weekly date preview is incorrect');
@@ -239,6 +240,8 @@ async function assertMobileLayout(page, label) {
     await page.getByLabel('Monthly').check();
     await page.getByRole('button', { name: 'View budget', exact: true }).click();
     await page.getByRole('heading', { name: 'Monthly snapshot' }).waitFor();
+    await page.locator('.mobile-nav').getByText('Plan', { exact: true }).click();
+    await page.getByText('Not every month is exactly 4 weeks.', { exact: true }).waitFor();
 
     await page.setViewportSize({ width: 320, height: 568 });
     await page.getByRole('button', { name: /Choose budget period/ }).click();

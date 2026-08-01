@@ -114,6 +114,7 @@ async function addShoppingItem(page, name, recurring = false, storeId = 'aldi', 
     await pageA.getByRole('button', { name: 'Got it' }).click();
 
     await pageA.getByRole('button', { name: /Choose budget period/ }).click();
+    await pageA.getByText(/Not every month is exactly 4 weeks/).waitFor();
     await pageA.getByLabel('Fortnightly').check();
     await pageA.locator('#period-anchor').fill('2026-08-05');
     const fortnightlyPreview = (await pageA.locator('#period-preview-label').textContent()).trim();
@@ -177,13 +178,15 @@ async function addShoppingItem(page, name, recurring = false, storeId = 'aldi', 
     await pageA.locator('#category-icon').fill('🐾');
     await pageA.locator('#category-name').fill('Pet food');
     await pageA.locator('#category-group').selectOption({ label: 'Animal costs' });
-    await pageA.locator('#category-budget').fill('30');
+    await pageA.locator('#category-budget').fill('220');
     await pageA.locator('#category-frequency').selectOption('weekly');
     await pageA.getByRole('button', { name: 'Save expenditure', exact: true }).click();
     const petFoodA = pageA.getByRole('button', { name: /Pet food/ });
     const petFoodB = pageB.getByRole('button', { name: /Pet food/ });
     await petFoodB.waitFor({ timeout: 5_000 });
     if (!(await petFoodB.innerText()).includes('per week')) throw new Error('Weekly expenditure did not sync to the second phone.');
+    if (!(await petFoodA.innerText()).includes('$440')) throw new Error('A $220 weekly expenditure was not shown as $440 in the fortnightly view.');
+    if (!(await petFoodB.innerText()).includes('$880')) throw new Error('A $220 weekly expenditure was not shown as $880 in the monthly view.');
 
     await petFoodB.click();
     await pageB.locator('#category-frequency').selectOption('fortnightly');
@@ -349,6 +352,7 @@ async function addShoppingItem(page, name, recurring = false, storeId = 'aldi', 
       serviceWorkerColdLaunchFixed: true,
       dismissibleBudgetNotice: true,
       appWidePeriodSelection: true,
+      fourWeekBudgetingConvention: '$220 weekly = $440 fortnightly = $880 monthly',
       customGroupsSynced: true,
       groupRenameSynced: true,
       expenditureFrequencySynced: true,
