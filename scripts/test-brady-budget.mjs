@@ -21,9 +21,11 @@ test('predicts store-specific grocery prices and learns household corrections', 
   const milk = estimateShoppingPrice('milk', 'aldi');
   const misspelledMilk = estimateShoppingPrice('millk', 'aldi');
   const colesMilk = estimateShoppingPrice('milk', 'coles');
+  const otherRice = estimateShoppingPrice('rice', 'other');
   assert.deepEqual({ price: milk.price, product: milk.product, source: milk.source }, { price: 3.55, product: 'Milk 2L', source: 'guide' });
   assert.equal(misspelledMilk.product, 'Milk 2L');
   assert.equal(colesMilk.price, 3.55);
+  assert.equal(otherRice.price, 3.20);
   assert.equal(estimateShoppingPrice('unlisted grocery item', 'aldi').price, 5);
   assert.equal(suggestShoppingProducts('mil', 'aldi')[0].name, 'Milk 2L');
 
@@ -31,6 +33,9 @@ test('predicts store-specific grocery prices and learns household corrections', 
   const remembered = estimateShoppingPrice('milk 2l', 'aldi', memory);
   assert.equal(remembered.price, 3.45);
   assert.equal(remembered.source, 'memory');
+
+  const otherMemory = rememberShoppingPrice({}, 'other', 'Market apples', 7, '2026-08-01T00:00:00.000Z');
+  assert.equal(estimateShoppingPrice('Market apples', 'other', otherMemory).price, 7);
 });
 
 test('merges simultaneous household shopping additions without losing either phone', () => {
@@ -114,7 +119,7 @@ test('mobile layout protects touch targets, navigation, forms, and bottom conten
   assert.doesNotMatch(app, /if \(activeView\(\) === "more"\) renderApp\(\);\s*\n\s*},\s*\n\s*}\);/);
   assert.match(styles, /\.mobile-nav \.nav-link\.active\s*\{\s*color:\s*var\(--on-mint\);\s*background:\s*var\(--mint\)/);
   assert.match(storage, /if \(remote\.status === status\) return;/);
-  assert.match(serviceWorker, /brady-budget-v5/);
+  assert.match(serviceWorker, /brady-budget-v6/);
   assert.match(serviceWorker, /\.\/js\/pricing\.js/);
 });
 
