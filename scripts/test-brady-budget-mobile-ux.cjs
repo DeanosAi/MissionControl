@@ -32,6 +32,58 @@ async function assertMobileLayout(page, label) {
     const fab = document.querySelector('.fab:not([hidden])');
     const lastContent = document.querySelector('#main-content .page-enter > :last-child');
     const nav = document.querySelector('.mobile-nav');
+    const colourParts = (value) => (value.match(/[\d.]+/g) || []).map(Number);
+    const hasYellowBackground = (element) => {
+      const [red, green, blue, alpha = 1] = colourParts(getComputedStyle(element).backgroundColor);
+      return alpha > 0.05 && red === 215 && green === 241 && blue === 92;
+    };
+    const effectiveBackground = (element) => {
+      for (let current = element; current; current = current.parentElement) {
+        const style = getComputedStyle(current);
+        const [, , , alpha = 1] = colourParts(style.backgroundColor);
+        if (alpha > 0.05 || style.backgroundImage !== 'none') return current;
+      }
+      return document.body;
+    };
+    const whiteOnYellow = [...document.querySelectorAll('*')].filter(visible).flatMap((element) => {
+      const hasDirectText = [...element.childNodes].some((node) => node.nodeType === Node.TEXT_NODE && node.textContent.trim());
+      const isIcon = element instanceof SVGElement;
+      if (!hasDirectText && !isIcon) return [];
+      const [red, green, blue] = colourParts(getComputedStyle(element).color);
+      if (red < 245 || green < 245 || blue < 245 || !hasYellowBackground(effectiveBackground(element))) return [];
+      return [{ element: element.tagName.toLowerCase(), text: element.textContent.trim().slice(0, 80), colour: getComputedStyle(element).color }];
+    });
+    const hero = document.querySelector('.hero-card');
+    const heroAccentOverlaps = [];
+    if (hero && visible(hero)) {
+      const heroRect = hero.getBoundingClientRect();
+      const accent = getComputedStyle(hero, '::after');
+      const top = Number.parseFloat(accent.top);
+      const right = Number.parseFloat(accent.right);
+      const width = Number.parseFloat(accent.width);
+      const height = Number.parseFloat(accent.height);
+      const accentRect = {
+        left: Math.max(heroRect.left, heroRect.right - right - width),
+        right: Math.min(heroRect.right, heroRect.right - right),
+        top: Math.max(heroRect.top, heroRect.top + top),
+        bottom: Math.min(heroRect.bottom, heroRect.top + top + height),
+      };
+      for (const element of hero.querySelectorAll('.hero-label, .hero-value, .hero-subtitle, .hero-stats')) {
+        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+        const textRects = [];
+        while (walker.nextNode()) {
+          if (!walker.currentNode.textContent.trim()) continue;
+          const range = document.createRange();
+          range.selectNodeContents(walker.currentNode);
+          textRects.push(...range.getClientRects());
+        }
+        const overlaps = textRects.some((textRect) => (
+          accentRect.left < textRect.right && accentRect.right > textRect.left
+          && accentRect.top < textRect.bottom && accentRect.bottom > textRect.top
+        ));
+        if (overlaps) heroAccentOverlaps.push(element.className);
+      }
+    }
     window.scrollTo(0, document.documentElement.scrollHeight);
     return new Promise((resolve) => requestAnimationFrame(() => {
       const fabRect = fab?.getBoundingClientRect();
@@ -41,6 +93,8 @@ async function assertMobileLayout(page, label) {
         viewportWidth: innerWidth,
         documentWidth: document.documentElement.scrollWidth,
         undersized,
+        whiteOnYellow,
+        heroAccentOverlaps,
         navFontSize: navLabel ? Number.parseFloat(getComputedStyle(navLabel).fontSize) : 0,
         contentClearsNav: !lastRect || !navRect || lastRect.bottom <= navRect.top,
         contentClearsFab: !lastRect || !fabRect || lastRect.bottom <= fabRect.top - 8,
@@ -49,6 +103,8 @@ async function assertMobileLayout(page, label) {
   });
   if (result.documentWidth > result.viewportWidth + 1) fail(`${label} has horizontal overflow`, result);
   if (result.undersized.length) fail(`${label} has touch targets smaller than 44px`, result.undersized);
+  if (result.whiteOnYellow.length) fail(`${label} has white content on a yellow background`, result.whiteOnYellow);
+  if (result.heroAccentOverlaps.length) fail(`${label} has hero text overlapping the yellow accent`, result.heroAccentOverlaps);
   if (result.navFontSize < 10.5) fail(`${label} navigation labels are too small`, result.navFontSize);
   if (!result.contentClearsNav || !result.contentClearsFab) fail(`${label} fixed controls obscure final content`, result);
   return result;
@@ -217,9 +273,16 @@ async function assertMobileLayout(page, label) {
       fail('Selected bottom navigation item is not legible in dark mode', activeNavigation);
     }
     await page.screenshot({ path: path.join(previewDir, 'brady-budget-active-tab-dark.png'), fullPage: false });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.locator('.mobile-nav').getByText('Overview', { exact: true }).click();
+    await page.waitForFunction(() => location.hash === '#overview');
+    await page.waitForTimeout(500);
+    const fieldTestOverview = await assertMobileLayout(page, 'field-test overview at 390px');
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({ path: path.join(previewDir, 'brady-budget-field-test-overview-dark.png'), fullPage: false });
     if (pageErrors.length) fail('Mobile browser errors', pageErrors);
 
-    console.log(JSON.stringify({ reopenedMonth, formAudit, layouts, quickAddByView, compactViewLayouts, activeNavigation }, null, 2));
+    console.log(JSON.stringify({ reopenedMonth, formAudit, layouts, quickAddByView, compactViewLayouts, activeNavigation, fieldTestOverview }, null, 2));
   } finally {
     await browser.close();
   }

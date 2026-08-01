@@ -126,8 +126,13 @@ test('mobile layout protects touch targets, navigation, forms, and bottom conten
   assert.match(app, /function updateVisibleSyncStatus\(\)/);
   assert.doesNotMatch(app, /if \(activeView\(\) === "more"\) renderApp\(\);\s*\n\s*},\s*\n\s*}\);/);
   assert.match(styles, /\.mobile-nav \.nav-link\.active\s*\{\s*color:\s*var\(--on-mint\);\s*background:\s*var\(--mint\)/);
+  assert.match(styles, /\.hero-card::after\s*\{[^}]*width:\s*80px;[^}]*height:\s*80px;/s);
+  assert.doesNotMatch(styles, /\.hero-card::after\s*\{[^}]*width:\s*330px;/s);
+  assert.match(app, /HOUSEHOLD_NOTICE_DISMISSED_KEY/);
+  assert.match(app, /data-action="dismiss-household-notice"/);
+  assert.match(app, /aria-label="Close individual budget message"/);
   assert.match(storage, /if \(remote\.status === status\) return;/);
-  assert.match(serviceWorker, /brady-budget-v10/);
+  assert.match(serviceWorker, /brady-budget-v11/);
 
   const manifest = JSON.parse(manifestSource);
   assert.equal(manifest.id, '/budget');

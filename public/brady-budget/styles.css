@@ -469,10 +469,10 @@ svg {
 
 .hero-card::after {
   position: absolute;
-  top: -112px;
-  right: -80px;
-  width: 330px;
-  height: 330px;
+  top: -50px;
+  right: -30px;
+  width: 80px;
+  height: 80px;
   background: var(--mint);
   border-radius: 50%;
   content: "";
@@ -480,17 +480,7 @@ svg {
 }
 
 .hero-card::before {
-  position: absolute;
-  z-index: 1;
-  top: 56px;
-  right: 40px;
-  width: 136px;
-  height: 72px;
-  background:
-    radial-gradient(80px 26px at 35% 50%, var(--ink) 0 74%, transparent 76%),
-    radial-gradient(80px 26px at 98% 80%, var(--ink) 0 74%, transparent 76%);
-  content: "";
-  transform: rotate(-8deg);
+  display: none;
 }
 
 .hero-content { position: relative; z-index: 2; }
@@ -628,7 +618,23 @@ svg {
 
 .notice.warning { color: #624b27; background: #fff0cf; border-color: #ead3a1; }
 .notice svg { width: 18px; flex: 0 0 auto; margin-top: 1px; }
-.notice button { margin-left: auto; white-space: nowrap; }
+.notice > .text-button { margin-left: auto; white-space: nowrap; }
+.notice-dismiss {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  margin: -9px -9px -9px auto;
+  padding: 0;
+  place-items: center;
+  color: var(--ink-soft);
+  background: transparent;
+  border: 0;
+  border-radius: 11px;
+  cursor: pointer;
+}
+.notice-dismiss:hover { background: rgba(16, 42, 42, 0.08); }
+.notice-dismiss svg { width: 17px; margin: 0; }
 
 .metrics-grid {
   display: grid;
@@ -986,7 +992,7 @@ svg {
   .icon-button { width: 44px; height: 44px; }
   .overview-grid, .content-grid, .plan-layout, .more-grid { grid-template-columns: 1fr; }
   .hero-card { min-height: 355px; padding: 27px 23px; border-radius: 23px; }
-  .hero-card::after { top: -170px; right: -120px; }
+  .hero-card::after { top: -50px; right: -30px; width: 80px; height: 80px; }
   .hero-card::before { display: none; }
   .hero-value { margin-top: 22px; font-size: 3.35rem; }
   .hero-subtitle { max-width: 280px; }
