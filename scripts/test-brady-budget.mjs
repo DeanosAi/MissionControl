@@ -100,12 +100,14 @@ test('Brady Budget branding and yellow controls contain no white foreground artw
 });
 
 test('mobile layout protects touch targets, navigation, forms, and bottom content', async () => {
-  const [styles, app, index, storage, serviceWorker] = await Promise.all([
+  const [styles, app, index, storage, serviceWorker, manifestSource, nextConfig] = await Promise.all([
     readFile(new URL('../public/brady-budget/styles.css', import.meta.url), 'utf8'),
     readFile(new URL('../public/brady-budget/js/app.js', import.meta.url), 'utf8'),
     readFile(new URL('../public/brady-budget/index.html', import.meta.url), 'utf8'),
     readFile(new URL('../public/brady-budget/js/storage.js', import.meta.url), 'utf8'),
     readFile(new URL('../public/brady-budget/sw.js', import.meta.url), 'utf8'),
+    readFile(new URL('../public/brady-budget/manifest.webmanifest', import.meta.url), 'utf8'),
+    readFile(new URL('../next.config.ts', import.meta.url), 'utf8'),
   ]);
   assert.match(index, /viewport-fit=cover/);
   assert.match(styles, /--topbar:\s*calc\(72px \+ env\(safe-area-inset-top\)\)/);
@@ -125,7 +127,14 @@ test('mobile layout protects touch targets, navigation, forms, and bottom conten
   assert.doesNotMatch(app, /if \(activeView\(\) === "more"\) renderApp\(\);\s*\n\s*},\s*\n\s*}\);/);
   assert.match(styles, /\.mobile-nav \.nav-link\.active\s*\{\s*color:\s*var\(--on-mint\);\s*background:\s*var\(--mint\)/);
   assert.match(storage, /if \(remote\.status === status\) return;/);
-  assert.match(serviceWorker, /brady-budget-v8/);
+  assert.match(serviceWorker, /brady-budget-v9/);
+
+  const manifest = JSON.parse(manifestSource);
+  assert.equal(manifest.id, '/budget');
+  assert.equal(manifest.start_url, '/budget');
+  assert.equal(manifest.scope, '/');
+  assert.match(nextConfig, /source:\s*["']\/brady-budget["']/);
+  assert.match(nextConfig, /destination:\s*["']\/budget["']/);
 
   const guideStart = app.indexOf('function howToGuideModal');
   const guideEnd = app.indexOf('function monthPickerModal', guideStart);
