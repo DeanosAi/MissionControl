@@ -1,0 +1,72 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import test from 'node:test';
+
+class MemoryStorage {
+  #values = new Map();
+  getItem(key) { return this.#values.get(key) ?? null; }
+  setItem(key, value) { this.#values.set(key, String(value)); }
+  removeItem(key) { this.#values.delete(key); }
+}
+
+globalThis.sessionStorage = new MemoryStorage();
+globalThis.localStorage = new MemoryStorage();
+
+const { mergeBudgetStates } = await import('../public/brady-budget/js/storage.js');
+const { ensureHousehold, shoppingWeekKey } = await import('../public/brady-budget/js/profiles.js');
+const { baseState } = await import('../public/brady-budget/js/seed.js');
+
+test('merges simultaneous household shopping additions without losing either phone', () => {
+  const base = { household: { shopping: { items: [] } } };
+  const firstPhone = { household: { shopping: { items: [{ id: 'milk', name: 'Milk' }] } } };
+  const secondPhone = { household: { shopping: { items: [{ id: 'bread', name: 'Bread' }] } } };
+  const merged = mergeBudgetStates(base, firstPhone, secondPhone);
+  assert.deepEqual(merged.household.shopping.items.map((item) => item.id).sort(), ['bread', 'milk']);
+});
+
+test('merges changes made to different individual profiles', () => {
+  const base = { profiles: [{ id: 'dean', transactions: [] }, { id: 'partner', transactions: [] }] };
+  const firstPhone = structuredClone(base);
+  firstPhone.profiles[0].transactions.push({ id: 'dean-txn', amount: 20 });
+  const secondPhone = structuredClone(base);
+  secondPhone.profiles[1].transactions.push({ id: 'partner-txn', amount: 30 });
+  const merged = mergeBudgetStates(base, firstPhone, secondPhone);
+  assert.equal(merged.profiles[0].transactions[0].id, 'dean-txn');
+  assert.equal(merged.profiles[1].transactions[0].id, 'partner-txn');
+});
+
+test('weekly shopping rollover restores recurring items and clears completed one-offs', () => {
+  const state = baseState();
+  state.household.shopping = {
+    budget: 180,
+    weekKey: '2000-01-03',
+    items: [
+      { id: 'milk', name: 'Milk', checked: true, recurring: true },
+      { id: 'treat', name: 'Treat', checked: true, recurring: false },
+      { id: 'rice', name: 'Rice', checked: false, recurring: false },
+    ],
+  };
+  const rolled = ensureHousehold(state);
+  assert.deepEqual(rolled.household.shopping.items.map((item) => item.id).sort(), ['milk', 'rice']);
+  assert.equal(rolled.household.shopping.items.find((item) => item.id === 'milk').checked, false);
+  assert.equal(rolled.household.shopping.weekKey, shoppingWeekKey());
+});
+
+test('shopping weeks start on Monday in local time', () => {
+  assert.equal(shoppingWeekKey(new Date(2026, 7, 1)), '2026-07-27');
+  assert.equal(shoppingWeekKey(new Date(2026, 7, 3)), '2026-08-03');
+});
+
+test('Brady Budget branding and yellow controls contain no white foreground artwork', async () => {
+  const [styles, icon, index] = await Promise.all([
+    readFile(new URL('../public/brady-budget/styles.css', import.meta.url), 'utf8'),
+    readFile(new URL('../public/brady-budget/assets/icon.svg', import.meta.url), 'utf8'),
+    readFile(new URL('../public/brady-budget/index.html', import.meta.url), 'utf8'),
+  ]);
+  assert.match(styles, /\.button\.accent\s*\{\s*color:\s*var\(--on-mint\)/);
+  assert.match(styles, /\.brand-mark strong[\s\S]*?color:\s*var\(--on-mint\)/);
+  assert.doesNotMatch(icon, /#fff|white/i);
+  assert.match(index, /Brady Budget/);
+  assert.doesNotMatch(index, /<strong>Harbour<\/strong>/);
+});
+

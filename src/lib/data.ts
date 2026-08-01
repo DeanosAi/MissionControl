@@ -13,6 +13,7 @@ export type DashboardKey =
   | 'memory'
   | 'ai-providers'
   | 'local-models'
+  | 'budget'
   | 'content';
 
 export interface NavItem {
@@ -75,6 +76,7 @@ export const navItems: NavItem[] = [
   { key: 'ideas', label: 'Ideas', href: '/ideas' },
   { key: 'projects', label: 'Projects', href: '/projects' },
   { key: 'ai-builds', label: 'AI Builds', href: '/ai-builds' },
+  { key: 'budget', label: 'Brady Budget', href: '/budget', badge: 'Live' },
   { key: 'chat', label: 'Orchestrate', href: '/chat', badge: 'V3' },
   { key: 'usage', label: 'Usage & Limits', href: '/usage' },
   { key: 'team', label: 'Team', href: '/team' },

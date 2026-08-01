@@ -17,7 +17,7 @@ function Navigation({ active, className = '' }: SidebarProps & { className?: str
   const projectActive = active === 'projects';
   const groups: Array<{ label: string; keys: DashboardKey[] }> = [
     { label: 'Command', keys: ['home', 'chat'] },
-    { label: 'Work', keys: ['projects', 'ideas', 'ai-builds', 'content'] },
+    { label: 'Work', keys: ['projects', 'ideas', 'ai-builds', 'budget', 'content'] },
     { label: 'Intelligence', keys: ['memory', 'ai-providers', 'team', 'usage'] },
     { label: 'Operations', keys: ['systems', 'automations', 'workflows', 'tools'] },
   ];

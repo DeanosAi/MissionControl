@@ -12,6 +12,19 @@ Mission Control VPS is a separate Next.js app for the VPS-hosted version of Miss
 - Memory / Journal section
 - Content section reserved as Coming Soon
 
+## Brady Budget
+
+Mission Control also hosts the private Brady Budget household app at `/budget`.
+
+- Mission Control admins can open it with their existing account.
+- Restricted household members sign in at `/budget/login` and cannot access the rest of Mission Control.
+- Individual profiles keep their own income, plans, transactions, goals, and bill portions.
+- The shopping list, grocery target, and shared bills sync through PostgreSQL and update connected phones live.
+- Weekly shopping items return unticked every Monday; unfinished one-off items carry over.
+- Household login management is available to the Mission Control admin at `/budget/access`.
+
+Apply `database/migrations/007_brady_budget.sql` before deploying this module to an existing database.
+
 ## Design direction
 - Professional modern SaaS base
 - Sleek dark control-room feel

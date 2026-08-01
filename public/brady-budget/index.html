@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en-AU">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#102a2a" />
+    <meta name="description" content="A private, mobile-first budgeting app that helps you know what is safe to spend." />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Brady Budget" />
+    <title>Brady Budget</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./assets/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./assets/icon-180.png" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body class="auth-pending">
+    <a class="skip-link" href="#main-content">Skip to content</a>
+
+    <svg class="icon-sprite" aria-hidden="true">
+      <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.8 12 3l9 7.8v9.7a.5.5 0 0 1-.5.5h-5v-6.5h-7V21h-5a.5.5 0 0 1-.5-.5v-9.7Z" /></symbol>
+      <symbol id="i-plan" viewBox="0 0 24 24"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5" /></symbol>
+      <symbol id="i-activity" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16M7 4v4M14 10v4M10 16v4" /></symbol>
+      <symbol id="i-goal" viewBox="0 0 24 24"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0-5a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0-4h.01" /></symbol>
+      <symbol id="i-cart" viewBox="0 0 24 24"><path d="M3 4h2l2.2 10.2a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.6L20 8H6M9 20h.01M17 20h.01" /></symbol>
+      <symbol id="i-more" viewBox="0 0 24 24"><path d="M5 12h.01M12 12h.01M19 12h.01" /></symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></symbol>
+      <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6" /></symbol>
+      <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6" /></symbol>
+      <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></symbol>
+      <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></symbol>
+      <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m0 0 5-5m-5 5-5-5M4 20h16" /></symbol>
+      <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4m0 0 5 5m-5-5L7 9M4 20h16" /></symbol>
+      <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></symbol>
+      <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M8 3v4M16 3v4M3 10h18" /></symbol>
+      <symbol id="i-edit" viewBox="0 0 24 24"><path d="m4 20 4.2-1 10.6-10.6a2 2 0 0 0-2.8-2.8L5.4 16.2 4 20ZM14.5 7l2.5 2.5" /></symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 3h6l1 4H8l1-4Zm-2 4 1 14h8l1-14M10 11v6M14 11v6" /></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" /></symbol>
+      <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" /></symbol>
+      <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M12 11v6M12 7h.01" /></symbol>
+      <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4H18v16H6.5A2.5 2.5 0 0 1 4 17.5v-11ZM4 8h14M14 13h7v4h-7z" /></symbol>
+    </svg>
+
+    <div class="app-shell" id="app-shell">
+      <aside class="sidebar" aria-label="Primary navigation">
+        <a class="brand" href="#overview" data-nav="overview" aria-label="Brady Budget home">
+          <span class="brand-mark" aria-hidden="true"><strong>BB</strong></span>
+          <span class="brand-copy"><strong>Brady</strong><small>Budget</small></span>
+        </a>
+
+        <nav class="desktop-nav"></nav>
+
+        <div class="privacy-note">
+          <svg><use href="#i-lock"></use></svg>
+          <div><strong>Household sync</strong><span>Protected by your Mission Control login.</span></div>
+        </div>
+      </aside>
+
+      <div class="app-column">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow" id="greeting">Good morning</p>
+            <h1 id="page-title">Overview</h1>
+          </div>
+          <div class="topbar-actions">
+            <button class="month-control" id="month-control" type="button" aria-label="Choose month">
+              <svg><use href="#i-calendar"></use></svg>
+              <span id="month-label"></span>
+              <svg class="chevron"><use href="#i-chevron-down"></use></svg>
+            </button>
+            <input id="month-picker" class="visually-hidden" type="month" />
+            <button class="profile-button" id="profile-button" type="button" aria-label="Switch budget profile">
+              <span class="profile-avatar" id="profile-initial">D</span>
+              <span class="profile-button-copy"><small>Viewing</small><strong id="profile-name">Dean</strong></span>
+              <svg class="chevron"><use href="#i-chevron-down"></use></svg>
+            </button>
+          </div>
+        </header>
+
+        <main id="main-content" tabindex="-1"></main>
+      </div>
+
+      <nav class="mobile-nav" aria-label="Primary navigation"></nav>
+      <button class="fab" id="quick-add" type="button" aria-label="Add transaction">
+        <svg><use href="#i-plus"></use></svg>
+      </button>
+    </div>
+
+    <div id="onboarding-root"></div>
+    <div id="modal-root"></div>
+    <div class="toast-region" id="toast-region" role="status" aria-live="polite"></div>
+
+    <noscript>
+      <div class="noscript">Brady Budget needs JavaScript enabled to work.</div>
+    </noscript>
+
+    <script type="module" src="./js/app.js"></script>
+  </body>
+</html>
