@@ -107,11 +107,14 @@ test('mobile layout protects touch targets, navigation, forms, and bottom conten
   assert.match(app, /aria-pressed="\$\{item\.checked\}"/);
   assert.match(app, /function monthPickerModal\(\)/);
   assert.match(app, /data-form="month-picker"/);
+  assert.match(app, /id="shopping-item-store"/);
+  assert.match(app, /shopping-store-breakdown/);
+  assert.doesNotMatch(app, /id="shopping-store"/);
   assert.match(app, /function updateVisibleSyncStatus\(\)/);
   assert.doesNotMatch(app, /if \(activeView\(\) === "more"\) renderApp\(\);\s*\n\s*},\s*\n\s*}\);/);
   assert.match(styles, /\.mobile-nav \.nav-link\.active\s*\{\s*color:\s*var\(--on-mint\);\s*background:\s*var\(--mint\)/);
   assert.match(storage, /if \(remote\.status === status\) return;/);
-  assert.match(serviceWorker, /brady-budget-v4/);
+  assert.match(serviceWorker, /brady-budget-v5/);
   assert.match(serviceWorker, /\.\/js\/pricing\.js/);
 });
 

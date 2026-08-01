@@ -85,9 +85,9 @@ async function assertMobileLayout(page, label) {
 
     await page.locator('.mobile-nav').getByText('Shopping', { exact: true }).click();
     await page.getByText('Shared grocery plan', { exact: true }).waitFor();
-    if (await page.locator('#shopping-store').inputValue() !== 'aldi') fail('Shopping list does not default to ALDI');
 
     await page.getByRole('button', { name: 'Add item', exact: true }).click();
+    if (await page.locator('#shopping-item-store').inputValue() !== 'aldi') fail('New shopping items do not default to ALDI');
     await page.locator('#shopping-name').fill('mil');
     const predictedMilk = page.locator('#shopping-product-suggestions').getByRole('button', { name: /Milk 2L/ });
     await predictedMilk.waitFor();
@@ -128,12 +128,20 @@ async function assertMobileLayout(page, label) {
     await page.locator('#modal-root').getByRole('button', { name: 'Add item', exact: true }).click();
     const milkRow = page.locator('.shopping-row').filter({ hasText: 'Milk 2L' });
     await milkRow.waitFor();
-    await page.locator('#shopping-store').selectOption('coles');
-    await page.locator('.shopping-row').filter({ hasText: 'Coles estimate' }).waitFor();
-    await page.locator('#shopping-store').selectOption('aldi');
     await page.locator('.shopping-row').filter({ hasText: 'ALDI saved price' }).waitFor();
 
     await page.getByRole('button', { name: 'Add item', exact: true }).click();
+    await page.locator('#shopping-item-store').selectOption('coles');
+    await page.locator('#shopping-name').fill('Bread');
+    if (await page.locator('#shopping-cost').inputValue() !== '2.90') fail('Coles bread estimate was not filled automatically');
+    await page.locator('#modal-root').getByRole('button', { name: 'Add item', exact: true }).click();
+    await page.locator('.shopping-row').filter({ hasText: 'Coles estimate' }).waitFor();
+    await page.locator('.shopping-store-breakdown span').filter({ hasText: 'ALDI' }).waitFor();
+    await page.locator('.shopping-store-breakdown span').filter({ hasText: 'Coles' }).waitFor();
+    if ((await page.locator('.shopping-total').textContent()).trim() !== '$11.90') fail('Mixed-store running total is incorrect');
+
+    await page.getByRole('button', { name: 'Add item', exact: true }).click();
+    await page.locator('#shopping-item-store').selectOption('aldi');
     await page.locator('#shopping-name').fill('Milk 2L');
     if (await page.locator('#shopping-cost').inputValue() !== '4.50') fail('Corrected ALDI price was not remembered');
     await page.getByRole('button', { name: 'Close' }).click();
