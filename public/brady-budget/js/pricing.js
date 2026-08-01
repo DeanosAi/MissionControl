@@ -2,6 +2,7 @@ export const SHOPPING_STORES = [
   { id: "aldi", label: "ALDI", fallback: 5 },
   { id: "coles", label: "Coles", fallback: 5.5 },
   { id: "woolworths", label: "Woolworths", fallback: 5.5 },
+  { id: "other", label: "Other", fallback: 5.5 },
 ];
 
 const PRICE_GUIDE = [
@@ -158,6 +159,12 @@ function matchGuide(query) {
   return best;
 }
 
+function priceForStore(prices, storeId) {
+  if (Number.isFinite(prices[storeId])) return prices[storeId];
+  const values = [prices.aldi, prices.coles, prices.woolworths];
+  return Math.round((values.reduce((sum, price) => sum + price, 0) / values.length) * 100) / 100;
+}
+
 export function estimateShoppingPrice(name, storeId = "aldi", priceMemory = {}) {
   const query = normaliseShoppingItemName(name);
   if (query.length < 2) return null;
@@ -167,7 +174,7 @@ export function estimateShoppingPrice(name, storeId = "aldi", priceMemory = {}) 
     return { price: Number(remembered.price), source: "memory", key: query, description: "Your household's saved price" };
   }
   const guide = matchGuide(query);
-  if (guide) return { price: guide.prices[store], source: "guide", key: guide.id, product: guide.label, description: `${storeLabel(store)} guide estimate for ${guide.label}` };
+  if (guide) return { price: priceForStore(guide.prices, store), source: "guide", key: guide.id, product: guide.label, description: `${storeLabel(store)} guide estimate for ${guide.label}` };
   const fallback = SHOPPING_STORES.find((entry) => entry.id === store)?.fallback || 5;
   return { price: fallback, source: "fallback", key: query, description: `${storeLabel(store)} general estimate` };
 }
@@ -182,7 +189,7 @@ export function suggestShoppingProducts(name, storeId = "aldi", priceMemory = {}
   });
   const guide = PRICE_GUIDE.flatMap(([id, aliases, aldi, coles, woolworths]) => {
     const score = Math.max(...aliases.map((alias) => matchScore(query, normaliseShoppingItemName(alias))));
-    return score ? [{ key: id, name: guideLabel(id, aliases), price: { aldi, coles, woolworths }[store], source: "guide", score }] : [];
+    return score ? [{ key: id, name: guideLabel(id, aliases), price: priceForStore({ aldi, coles, woolworths }, store), source: "guide", score }] : [];
   });
   return [...remembered, ...guide]
     .sort((first, second) => second.score - first.score)

@@ -157,6 +157,13 @@ async function addShoppingItem(page, name, recurring = false, storeId = 'aldi', 
       if ((await page.locator('.shopping-total').textContent()).trim() !== '$12.25') throw new Error('Mixed-store expected total is incorrect.');
     }
 
+    const predictedOtherRice = await addShoppingItem(pageA, 'Rice', false, 'other');
+    if (predictedOtherRice !== '3.20') throw new Error(`Other-store rice prediction was ${predictedOtherRice}, not 3.20.`);
+    for (const page of [pageA, pageB]) {
+      await page.locator('.shopping-row').filter({ hasText: 'Rice' }).filter({ hasText: 'Other estimate' }).waitFor({ timeout: 5_000 });
+      if ((await page.locator('.shopping-total').textContent()).trim() !== '$15.45') throw new Error('Other-store item was not included in the shared total.');
+    }
+
     await pageA.locator('.mobile-nav').getByText('More', { exact: true }).click();
     await pageA.getByRole('button', { name: 'Add bill' }).click();
     await pageA.locator('#bill-name').fill('Internet');
@@ -204,6 +211,7 @@ async function addShoppingItem(page, name, recurring = false, storeId = 'aldi', 
       profilesIndependent: true,
       realtimeShopping: true,
       mixedStoreItemsSynced: true,
+      otherStoreItemSynced: true,
       predictedMilkPrice,
       correctedPriceLearnedAcrossPhones: true,
       concurrentItemsMerged: true,

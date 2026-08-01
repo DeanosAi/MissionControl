@@ -141,6 +141,15 @@ async function assertMobileLayout(page, label) {
     if ((await page.locator('.shopping-total').textContent()).trim() !== '$11.90') fail('Mixed-store running total is incorrect');
 
     await page.getByRole('button', { name: 'Add item', exact: true }).click();
+    await page.locator('#shopping-item-store').selectOption('other');
+    await page.locator('#shopping-name').fill('Rice');
+    if (await page.locator('#shopping-cost').inputValue() !== '3.20') fail('Other-store rice estimate was not filled automatically');
+    await page.locator('#modal-root').getByRole('button', { name: 'Add item', exact: true }).click();
+    await page.locator('.shopping-row').filter({ hasText: 'Other estimate' }).waitFor();
+    await page.locator('.shopping-store-breakdown span').filter({ hasText: 'Other' }).waitFor();
+    if ((await page.locator('.shopping-total').textContent()).trim() !== '$15.10') fail('Other-store item was not included in the running total');
+
+    await page.getByRole('button', { name: 'Add item', exact: true }).click();
     await page.locator('#shopping-item-store').selectOption('aldi');
     await page.locator('#shopping-name').fill('Milk 2L');
     if (await page.locator('#shopping-cost').inputValue() !== '4.50') fail('Corrected ALDI price was not remembered');
