@@ -560,6 +560,24 @@ function closeModal() {
   pendingCSVTransactions = [];
 }
 
+function howToGuideModal() {
+  openModal({
+    title: "How to use Brady Budget",
+    subtitle: "Follow these easy steps. You can open this guide whenever you need help.",
+    size: "guide-modal",
+    body: `<div class="how-to-guide">
+      <section class="guide-step"><span class="guide-number">1</span><div><h3>Add the money you get paid</h3><p>When you first start, type how much money you get and how often you get it. To change it later, tap <strong>More</strong>, find <strong>Profile &amp; preferences</strong>, then tap <strong>Edit</strong>.</p></div></section>
+      <section class="guide-step"><span class="guide-number">2</span><div><h3>Plan where your money will go</h3><p>Tap <strong>Plan</strong>. Tap a row such as Food or Transport. Type how much money you want to use for it each month, then tap <strong>Save category</strong>.</p><ul><li>A category means one kind of spending, such as Food.</li><li><strong>Ready to assign</strong> is money that does not have a job yet. Keep it at $0 or higher.</li></ul></div></section>
+      <section class="guide-step"><span class="guide-number">3</span><div><h3>Add money you get or spend</h3><p>Tap <strong>Activity</strong>, then tap <strong>Add</strong>. Choose <strong>Income</strong> when you get money. Choose <strong>Expense</strong> when you spend money. Add the name, amount, date and category, then save it.</p></div></section>
+      <section class="guide-step"><span class="guide-number">4</span><div><h3>Check how you are doing</h3><p>Tap <strong>Overview</strong>. <strong>Safe to spend</strong> shows money that is still free after your plan, bills and goals. Tap the calendar at the top to look at a different month.</p></div></section>
+      <section class="guide-step"><span class="guide-number">5</span><div><h3>Keep track of bills and saving goals</h3><p>For a bill, tap <strong>More</strong>, then <strong>Add bill</strong>. Add the amount and the date it must be paid. To save for something, tap <strong>Goals</strong>, then <strong>New goal</strong>.</p><ul><li>If the share option is shown, enter the full bill and the part you will pay. The other part is worked out for you.</li></ul></div></section>
+      <section class="guide-step"><span class="guide-number">6</span><div><h3>Make a shopping list</h3><p>Tap <strong>Shopping</strong>, then follow these steps:</p><ul><li>Tap <strong>Set budget</strong> and enter the most you want to spend.</li><li>Tap <strong>Add item</strong> and choose the store.</li><li>Type the item. The app will suggest a price. Change it if you know a better price.</li><li>Add the amount you need. Turn on <strong>Add every week</strong> for things you buy often.</li><li>Tap <strong>Add item</strong>. The expected total changes as items are added.</li><li>At the shop, tap the empty tick beside an item when it goes into your trolley.</li></ul></div></section>
+      <section class="guide-step"><span class="guide-number">7</span><div><h3>Use your saved price again</h3><p>If the app does not know a product, type its name and add your own price. Next time you choose that store, it will appear as a <strong>Saved product</strong>. The shopping list also updates on the other phone using Brady Budget.</p></div></section>
+      <p class="guide-tip"><strong>Small steps are fine.</strong> Add spending as it happens and check Overview often. You can change any amount later.</p>
+    </div><div class="modal-actions"><button class="button" type="button" data-action="close-modal">Got it</button></div>`,
+  });
+}
+
 function monthPickerModal() {
   openModal({
     title: "Choose month",
@@ -1318,6 +1336,7 @@ function init() {
   document.addEventListener("focusin", (event) => {
     if (event.target.id === "shopping-name") renderShoppingSuggestions(event.target.value);
   });
+  $("#how-to-control").addEventListener("click", howToGuideModal);
   $("#month-control").addEventListener("click", monthPickerModal);
   $("#profile-button").addEventListener("click", profileSwitcherModal);
   $("#quick-add").addEventListener("click", () => activeView() === "shopping" ? shoppingItemModal() : transactionModal());

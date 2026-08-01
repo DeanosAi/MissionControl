@@ -304,6 +304,7 @@ svg {
   gap: 12px;
 }
 
+.info-control,
 .month-control,
 .profile-button {
   display: inline-flex;
@@ -315,6 +316,16 @@ svg {
   cursor: pointer;
   box-shadow: 0 3px 15px rgba(16, 42, 42, 0.03);
 }
+
+.info-control {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  color: var(--ink-soft);
+  border-radius: 12px;
+}
+
+.info-control svg { width: 19px; }
 
 .month-control {
   gap: 9px;
@@ -804,6 +815,15 @@ svg {
 .modal-close svg { width: 18px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
 
+.modal.guide-modal { width: min(680px, 100%); }
+.how-to-guide { display: grid; gap: 12px; }
+.guide-step { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; padding: 14px; background: var(--paper); border: 1px solid var(--line); border-radius: 14px; }
+.guide-number { display: grid; width: 32px; height: 32px; place-items: center; color: var(--on-mint); background: var(--mint); border-radius: 10px; font-size: 0.78rem; font-weight: 850; }
+.guide-step h3 { margin: 3px 0 7px; font-size: 0.86rem; }
+.guide-step p { margin: 0; color: var(--ink-soft); font-size: 0.76rem; line-height: 1.55; }
+.guide-step ul { display: grid; gap: 6px; margin: 8px 0 0; padding-left: 18px; color: var(--ink-soft); font-size: 0.74rem; line-height: 1.5; }
+.guide-tip { margin: 2px 0 0; padding: 13px 14px; color: var(--ink-soft); background: rgba(215, 241, 92, 0.2); border: 1px solid rgba(148, 174, 35, 0.35); border-radius: 13px; font-size: 0.74rem; line-height: 1.55; }
+
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
 .field { display: grid; gap: 7px; }
 .field.full { grid-column: 1 / -1; }
@@ -946,6 +966,7 @@ svg {
   .topbar .eyebrow { display: none; }
   .topbar h1 { font-size: 1.45rem; }
   .topbar-actions { gap: 8px; }
+  .info-control { flex: 0 0 44px; }
   .month-control { width: 44px; padding: 0; }
   .month-control span, .month-control .chevron { display: none; }
   .profile-button { width: 44px; min-width: 44px; padding: 4px; }
@@ -1017,6 +1038,7 @@ svg {
   .modal { width: 100%; max-height: calc(100dvh - env(safe-area-inset-top)); overscroll-behavior: contain; padding: 22px 18px calc(18px + env(safe-area-inset-bottom)); border-radius: 24px 24px 0 0; }
   .modal-actions { position: sticky; bottom: calc(-18px - env(safe-area-inset-bottom)); display: flex; flex-wrap: wrap; gap: 8px; margin: 8px -18px calc(-18px - env(safe-area-inset-bottom)); padding: 12px 18px calc(18px + env(safe-area-inset-bottom)); background: var(--surface); border-top: 1px solid var(--line); }
   .modal-actions .button { flex: 1 1 120px; min-height: 48px; }
+  .guide-step { padding: 12px; }
   .onboarding { align-items: start; padding: 0; background: var(--surface); }
   .onboarding-card { min-height: 100vh; min-height: 100dvh; grid-template-columns: 1fr; border-radius: 0; box-shadow: none; }
   .onboarding-art { min-height: 210px; padding: 24px; }

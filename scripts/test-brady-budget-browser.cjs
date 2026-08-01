@@ -77,6 +77,12 @@ async function addShoppingItem(page, name, recurring = false, storeId = 'aldi', 
     await pageA.getByRole('button', { name: 'Explore sample' }).click();
     await pageA.getByText('Safe to spend', { exact: true }).waitFor();
 
+    await pageA.getByRole('button', { name: 'How to use Brady Budget' }).click();
+    const guideText = await pageA.locator('.how-to-guide').innerText();
+    if (!guideText.includes('Plan where your money will go') || !guideText.includes('Make a shopping list')) throw new Error('The in-app guide is missing budget or shopping help.');
+    if (/add partner|create profile|partner profile/i.test(guideText)) throw new Error('The in-app guide includes partner-profile setup instructions.');
+    await pageA.getByRole('button', { name: 'Got it' }).click();
+
     await pageA.getByRole('button', { name: 'Switch budget profile' }).click();
     await pageA.getByRole('button', { name: 'Add partner' }).click();
     await pageA.locator('#partner-name').fill('Alex');
@@ -225,6 +231,7 @@ async function addShoppingItem(page, name, recurring = false, storeId = 'aldi', 
       mixedStoreItemsSynced: true,
       otherStoreItemSynced: true,
       learnedProductSynced: true,
+      simpleHowToGuide: true,
       predictedMilkPrice,
       correctedPriceLearnedAcrossPhones: true,
       concurrentItemsMerged: true,
