@@ -278,7 +278,7 @@ export async function initialiseRemoteSync({ onState, onStatus } = {}) {
     remote.ready = true;
     connectEvents();
     clearInterval(remote.pollTimer);
-    remote.pollTimer = setInterval(() => refreshRemoteState().catch(() => setStatus("reconnecting")), 15_000);
+    remote.pollTimer = setInterval(() => refreshRemoteState().catch(() => setStatus("reconnecting")), 3_000);
   } catch (error) {
     console.warn("Brady Budget is using its offline copy", error);
     setStatus("offline");

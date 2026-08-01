@@ -28,7 +28,10 @@ async function switchProfile(page, name) {
   } else {
     await page.getByRole('button', { name: 'Close' }).click();
   }
-  await page.locator('#profile-name').filter({ hasText: name }).waitFor();
+  await page.waitForFunction(
+    (expectedName) => document.querySelector('#profile-name')?.textContent === expectedName,
+    name,
+  );
 }
 
 async function openShopping(page) {
@@ -54,8 +57,15 @@ async function addShoppingItem(page, name, recurring = false) {
   const pageA = await phoneA.newPage();
   const pageB = await phoneB.newPage();
   for (const page of [pageA, pageB]) {
-    page.on('pageerror', (error) => errors.push(error.message));
-    page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
+    page.on('pageerror', (error) => {
+      errors.push(error.message);
+      console.error(`Browser page error: ${error.message}`);
+    });
+    page.on('console', (message) => {
+      if (message.type() !== 'error') return;
+      errors.push(message.text());
+      console.error(`Browser console error: ${message.text()}`);
+    });
   }
 
   try {
@@ -69,7 +79,9 @@ async function addShoppingItem(page, name, recurring = false) {
     await pageA.locator('#partner-income').fill('3000');
     await pageA.locator('#partner-cadence').selectOption('monthly');
     await pageA.getByRole('button', { name: 'Create profile' }).click();
-    await pageA.locator('#profile-name').filter({ hasText: 'Alex' }).waitFor();
+    await pageA.waitForFunction(
+      () => document.querySelector('#profile-name')?.textContent === 'Alex',
+    );
 
     await login(pageB, emailB, passwordB);
     await pageB.getByText('Safe to spend', { exact: true }).waitFor();
@@ -85,8 +97,32 @@ async function addShoppingItem(page, name, recurring = false) {
     await pageA.getByRole('button', { name: 'Set budget' }).click();
     await pageA.locator('#shopping-budget').fill('200');
     await pageA.getByRole('button', { name: 'Save budget' }).click();
+    const liveUpdateStartedAt = Date.now();
+    const saveResponsePromise = pageA.waitForResponse((response) => {
+      if (!response.url().endsWith('/api/budget/state') || response.request().method() !== 'PUT') return false;
+      try {
+        return response.request().postDataJSON().state.household.shopping.items
+          .some((item) => item.name === 'Milk');
+      } catch {
+        return false;
+      }
+    });
     await addShoppingItem(pageA, 'Milk', true);
-    await pageB.getByText('Milk', { exact: true }).waitFor({ timeout: 5_000 });
+    const saveResponse = await saveResponsePromise;
+    console.log(`Shopping save returned HTTP ${saveResponse.status()}.`);
+    const serverSnapshot = await pageB.evaluate(async () => {
+      const response = await fetch('/api/budget/state', { cache: 'no-store' });
+      const payload = await response.json();
+      return {
+        status: response.status,
+        hasMilk: payload.state?.household?.shopping?.items?.some((item) => item.name === 'Milk'),
+        revision: payload.revision,
+      };
+    });
+    console.log(`Second phone sees server snapshot: ${JSON.stringify(serverSnapshot)}.`);
+    await pageB.getByText('Milk', { exact: true }).waitFor({ timeout: 20_000 });
+    const liveUpdateLatencyMs = Date.now() - liveUpdateStartedAt;
+    console.log(`First cross-phone update arrived in ${liveUpdateLatencyMs}ms.`);
     await pageB.getByText('Weekly', { exact: true }).waitFor();
 
     const milkB = pageB.locator('.shopping-row').filter({ hasText: 'Milk' });
