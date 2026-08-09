@@ -13,6 +13,14 @@ const nextConfig: NextConfig = {
         source: "/brady-budget/",
         destination: "/brady-budget/index.html",
       },
+      {
+        source: "/one-leaderboard",
+        destination: "http://one-leaderboard:4173/",
+      },
+      {
+        source: "/one-leaderboard/:path*",
+        destination: "http://one-leaderboard:4173/:path*",
+      },
     ];
   },
 };

@@ -25,6 +25,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      one-leaderboard:
+        condition: service_healthy
     ports:
       - "3000:3000"
     environment:
@@ -49,5 +51,20 @@ services:
       AUTOMATION_TICK_TOKEN: ${AUTOMATION_TICK_TOKEN}
       RESEARCH_SOURCE_URLS: ${RESEARCH_SOURCE_URLS}
 
+  one-leaderboard:
+    build:
+      context: https://github.com/DeanosAi/one-by-mingara-leaderboard.git#022839343f6fc95cb18d1146f15033d0e1c1f199
+    container_name: one-leaderboard
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4173
+      ADMIN_PASSWORD: ${LEADERBOARD_ADMIN_PASSWORD:?Set LEADERBOARD_ADMIN_PASSWORD in .env}
+    expose:
+      - "4173"
+    volumes:
+      - one-leaderboard-data:/app/data
+
 volumes:
   postgres-data:
+  one-leaderboard-data:
