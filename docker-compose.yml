@@ -53,7 +53,7 @@ services:
 
   one-leaderboard:
     build:
-      context: https://github.com/DeanosAi/one-by-mingara-leaderboard.git#ec8e2be6d3705c16b1c79243128fb9a870c6a03b
+      context: https://github.com/DeanosAi/one-by-mingara-leaderboard.git#f4be492800eda30d61f8d699d2ef3dd0e07ac3f7
     container_name: one-leaderboard
     restart: unless-stopped
     environment:
